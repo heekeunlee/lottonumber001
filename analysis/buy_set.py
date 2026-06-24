@@ -72,20 +72,11 @@ def cmd_generate(rnd_arg=None, count=20, force=False):
 def cmd_weekly():
     led, key = cmd_generate(None, 20, force=False)
     e = led[key]
-    games = e["predicted"]
-    fixed = e["fixed"][0]
-    n_blocks = (len(games) + 4) // 5
-    # 5게임씩 끊어 여러 통(각 ≤200자)으로 발송. 마지막 줄에 면책 1회.
-    for b in range(n_blocks):
-        chunk = games[b*5:(b+1)*5]
-        head = f"🎰{e['round']}회({e['draw_date'][5:]}) 비교 {e['games']}게임 [{b+1}/{n_blocks}] 고정수{fixed:02d}"
-        lines = [head] + [f"{g['i']:2d}) " + " ".join(f"{n:02d}" for n in g["nums"]) for g in chunk]
-        if b == n_blocks - 1:
-            lines.append("⚠️예측력0·오락용 각1/814만")
-        msg = "\n".join(lines)
-        if len(msg) > 200: msg = msg[:197] + "…"
-        print("<<<KAKAO>>>")
-        print(msg)
+    msg = (f"🎰 {e['round']}회({e['draw_date'][5:]}) 비교실험 20게임({e['budget']:,}원) 잠금완료\n"
+           f"고정수 {e['fixed'][0]:02d} · 전체 20게임 보기↓\n{SITE}\n⚠️예측력0·오락용")
+    if len(msg) > 200: msg = msg[:197] + "…"
+    print("<<<KAKAO>>>")
+    print(msg)
 
 def cmd_user(rnd_arg, blob):
     led = load(); key = str(rnd_arg)
