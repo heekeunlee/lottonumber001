@@ -35,14 +35,17 @@
 - 검정: 균일성 χ² p≈0.96 / 자기상관 BH 유의 0개 / 미출간격 CV≈0.94 / 백테스트 p≈0.41 / ROI≈-40%
 - 1230회 5게임·20게임(고정수13) 모두 잠금 완료. 5게임은 카톡 발송됨(테스트 포함).
 
-## 주간 자동화 (클라우드 루틴 2개, 매주 월요일, PlayMCP 커넥터)
-- 09:07 KST — `lotto-weekly` 5게임: 채점→예측→카톡(번호 직접)→커밋
-  · trig_01Twek1UpPijTrZFcPSARi4U
-- 09:25 KST — `lotto-weekly-20` 20게임: 채점→예측→카톡(고정수+링크)→커밋
-  · trig_0171URkzVPLW6TSAeiUG5xy9
+## 주간 자동화 (클라우드 루틴 1개로 통합, 매주 월요일 1회, PlayMCP 커넥터)
+- **09:07 KST `lotto-weekly`** (trig_01Twek1UpPijTrZFcPSARi4U) — 월 1회 실행:
+  1) 지난 회차 채점(5게임+20게임) **내부 반영만, 카톡 미발송**
+  2) 5게임 예측 → 카톡 1통(번호 직접)
+  3) 20게임 비교실험 → 카톡 1통(고정수+대시보드 링크)
+  4) 커밋·푸시 → **카톡 총 2통**
+- `lotto-weekly-20`(trig_0171URkzVPLW6TSAeiUG5xy9)은 **비활성화**(enabled:false). 위로 통합됨.
 - 루틴 관리: https://claude.ai/code/routines
-- 스킬: `.claude/skills/lotto-weekly/`, `.claude/skills/lotto-weekly-20/`
+- 스킬: `.claude/skills/lotto-weekly/`(통합 본체), `.claude/skills/lotto-weekly-20/`(수동/참고용)
 - 카톡: PlayMCP `KakaotalkChat-MemoChat`(나챗방, **최대 200자**), 로또결과: PlayMCP `lotto645-*`
+- 채점 결과는 카톡이 아니라 **대시보드(tracker/compare)**에만 반영(사용자 지시 2026-06-24).
 
 ## 주의/관례
 - 카톡은 한 번 실행당 1건만 발송(스팸 금지).
