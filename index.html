@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>로또9단 1등분석 기법 — 분석 대시보드</title>
+<meta name="description" content="『로또9단 1등 분석기법』(이승윤) 분석 기법 정리와, 왜 당첨자를 많이 배출했다고 하는지에 대한 통계적 해설 대시보드" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0b1020; --bg2:#121a32; --card:#161f3d; --card2:#1b2750;
+    --ink:#eaf0ff; --muted:#9aa6c8; --line:#27345f;
+    --accent:#5b8cff; --accent2:#9b6bff; --gold:#ffcc4d;
+    --green:#3ddc97; --red:#ff6b6b; --amber:#ffb84d;
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; font-family:'Noto Sans KR',system-ui,sans-serif;
+    background:linear-gradient(180deg,#0b1020,#0e1530 40%,#0b1020);
+    color:var(--ink); line-height:1.65; -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent)}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+  /* HERO */
+  header.hero{
+    position:relative; overflow:hidden;
+    padding:72px 0 56px; text-align:center;
+    background:
+      radial-gradient(900px 380px at 20% -10%, rgba(91,140,255,.25), transparent 60%),
+      radial-gradient(800px 360px at 90% 0%, rgba(155,107,255,.22), transparent 60%);
+    border-bottom:1px solid var(--line);
+  }
+  .badge{
+    display:inline-block; font-size:13px; letter-spacing:.5px;
+    color:var(--gold); border:1px solid rgba(255,204,77,.35);
+    background:rgba(255,204,77,.08); padding:6px 14px; border-radius:999px; margin-bottom:18px;
+  }
+  header.hero h1{font-size:clamp(28px,5vw,46px);margin:6px 0 10px;font-weight:900;letter-spacing:-1px}
+  header.hero .sub{color:var(--muted);font-size:clamp(15px,2.4vw,18px);max-width:680px;margin:0 auto}
+  .author{margin-top:14px;font-size:14px;color:var(--muted)}
+  .ball-row{margin:26px 0 4px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .ball{
+    width:46px;height:46px;border-radius:50%;display:grid;place-items:center;
+    font-weight:700;color:#10162b;box-shadow:0 6px 18px rgba(0,0,0,.35);
+  }
+  .b1{background:#ffd24d}.b2{background:#7fd0ff}.b3{background:#ff8f8f}
+  .b4{background:#9aa7c9}.b5{background:#9be39b}.b6{background:#caa6ff}
+
+  /* NAV */
+  nav.toc{position:sticky;top:0;z-index:20;background:rgba(11,16,32,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  nav.toc .wrap{display:flex;gap:6px;overflow-x:auto;padding:10px 20px}
+  nav.toc a{white-space:nowrap;color:var(--muted);text-decoration:none;font-size:14px;padding:8px 12px;border-radius:10px}
+  nav.toc a:hover{color:var(--ink);background:var(--card)}
+
+  section{padding:54px 0;border-bottom:1px solid rgba(39,52,95,.5)}
+  h2{font-size:clamp(22px,3.4vw,30px);margin:0 0 6px;font-weight:800;letter-spacing:-.5px}
+  h2 .num{color:var(--accent);font-weight:900;margin-right:10px}
+  .lead{color:var(--muted);margin:0 0 26px;font-size:16px}
+
+  .grid{display:grid;gap:18px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+
+  .card{
+    background:linear-gradient(180deg,var(--card),var(--card2));
+    border:1px solid var(--line); border-radius:var(--radius); padding:22px;
+  }
+  .card h3{margin:0 0 8px;font-size:18px;display:flex;align-items:center;gap:9px}
+  .card h3 .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:rgba(91,140,255,.16);font-size:16px}
+  .card p{margin:6px 0;color:#cfd8f4;font-size:14.5px}
+  .tag{display:inline-block;font-size:12px;color:var(--accent);background:rgba(91,140,255,.12);border:1px solid rgba(91,140,255,.3);padding:3px 9px;border-radius:8px;margin-top:8px}
+
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:var(--radius);padding:20px;text-align:center}
+  .kpi .v{font-size:clamp(22px,4vw,32px);font-weight:900;color:var(--gold);letter-spacing:-1px}
+  .kpi .l{font-size:13px;color:var(--muted);margin-top:4px}
+
+  .chartbox{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+  .chartbox h3{margin:0 0 4px;font-size:17px}
+  .chartbox p.note{font-size:13px;color:var(--muted);margin:0 0 14px}
+  .canvas-h{position:relative;height:300px}
+
+  table{width:100%;border-collapse:collapse;font-size:14.5px;overflow:hidden;border-radius:12px}
+  th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line)}
+  th{background:var(--card2);color:var(--ink);font-weight:700}
+  td{color:#cfd8f4}
+  .ok{color:var(--green);font-weight:700}
+  .no{color:var(--red);font-weight:700}
+  .warn{color:var(--amber);font-weight:700}
+
+  .callout{border-left:4px solid var(--gold);background:rgba(255,204,77,.07);padding:16px 20px;border-radius:10px;margin:18px 0;color:#f1e6c8}
+  .callout.red{border-color:var(--red);background:rgba(255,107,107,.08);color:#ffd9d9}
+  .callout.blue{border-color:var(--accent);background:rgba(91,140,255,.08);color:#dbe6ff}
+  .callout b{color:#fff}
+
+  .steps{counter-reset:s;display:grid;gap:12px}
+  .step{display:flex;gap:14px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .step .n{counter-increment:s;min-width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:900}
+  .step .n::before{content:counter(s)}
+  .step .t b{display:block;margin-bottom:2px}
+  .step .t span{color:var(--muted);font-size:14px}
+
+  footer{padding:40px 0 60px;text-align:center;color:var(--muted);font-size:13px}
+  footer .src{margin-top:14px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  footer a{color:var(--muted);text-decoration:none;border-bottom:1px dashed var(--line)}
+  .disclaimer{max-width:760px;margin:0 auto 0;font-size:12.5px;line-height:1.6;color:#8b97ba}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="badge">📚 도서 분석 대시보드 · 비판적 리뷰</span>
+    <h1>로또9단 1등분석 기법</h1>
+    <p class="sub">『로또9단 1등 분석기법』(이승윤·푸른e미디어)이 말하는 분석 기법의 상세 내용과,
+       <b>"왜 당첨자를 많이 배출했다"</b>고 말할 수 있는지를 통계적으로 해부합니다.</p>
+    <p class="author">저자 이승윤 · 유튜브 채널 「로또9단」 운영 · EBS 복권편 출연</p>
+    <div class="ball-row">
+      <div class="ball b1">제외수</div>
+      <div class="ball b2">고정수</div>
+      <div class="ball b3">홀짝</div>
+      <div class="ball b4">총합</div>
+      <div class="ball b5">끝수합</div>
+      <div class="ball b6">연번</div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap">
+    <a href="#overview">개요</a>
+    <a href="#techniques">분석 기법</a>
+    <a href="#stats">통계 차트</a>
+    <a href="#why">"당첨자 다수" 진실</a>
+    <a href="#math">대수의 법칙 산수</a>
+    <a href="#bias">편향 정리</a>
+    <a href="#verdict">결론</a>
+  </div>
+</nav>
+
+<!-- OVERVIEW -->
+<section id="overview">
+  <div class="wrap">
+    <h2><span class="num">00</span>책 개요</h2>
+    <p class="lead">유튜브 「로또9단」을 운영하는 이승윤이 3년간의 실전 분석을 정리한 책입니다.
+       제외수·고정수·미출 기간표 등으로 후보 조합을 좁히는 방법을 다룹니다.</p>
+    <div class="kpis">
+      <div class="kpi"><div class="v">2,600만:1</div><div class="l">로또 1등 확률 (1/8,145,060)</div></div>
+      <div class="kpi"><div class="v">2등 8명</div><div class="l">책이 밝힌 채널 배출 (2020.6~2022.6)</div></div>
+      <div class="kpi"><div class="v">3등 260명</div><div class="l">책이 밝힌 채널 배출</div></div>
+      <div class="kpi"><div class="v">6 PART</div><div class="l">기본이해 → 통계 → 조합기법 구성</div></div>
+    </div>
+    <div class="callout blue" style="margin-top:24px">
+      <b>이 대시보드의 입장:</b> 책의 통계 자료(홀짝·총합·끝수합 분포)는 <b>실제 데이터로 사실</b>입니다.
+      그러나 그것으로 <b>다음 회차를 예측</b>할 수 있다는 주장은 성립하지 않습니다. 아래에서 둘을 분리해 설명합니다.
+    </div>
+  </div>
+</section>
+
+<!-- TECHNIQUES -->
+<section id="techniques">
+  <div class="wrap">
+    <h2><span class="num">01</span>책이 다루는 분석 기법</h2>
+    <p class="lead">핵심 발상: 전체 약 814만 조합에서 <b>"통계적으로 드문 모양"</b>을 쳐내 후보를 압축한다.</p>
+    <div class="grid g3">
+      <div class="card">
+        <h3><span class="ic">🚫</span>제외수</h3>
+        <p>이번 회차에 안 나올 것 같은 번호를 후보에서 제거. 직전 당첨번호·최근 과출현 번호 등을 근거로 삼습니다.</p>
+        <p>6개 중 일부만 정확히 빼도 조합 수가 급감 — <b>비중이 가장 큰 기법</b>.</p>
+        <span class="tag">조합 압축</span>
+      </div>
+      <div class="card">
+        <h3><span class="ic">📌</span>고정수</h3>
+        <p>반대로 반드시 포함시킬 번호 1~2개를 고정. "흐름상 나올 차례"라는 판단으로 제외수와 짝을 이룹니다.</p>
+        <span class="tag">조합 압축</span>
+      </div>
+      <div class="card">
+        <h3><span class="ic">🌡️</span>미출 기간표 (핫/콜드)</h3>
+        <p>각 번호가 마지막 출현 후 몇 주 지났는지 추적.</p>
+        <p>5주 이내=핫수 · 6~10주=미지근 · 11주↑=콜드수. "나올 때 됐다" 논리.</p>
+        <span class="tag">출현 주기</span>
+      </div>
+      <div class="card">
+        <h3><span class="ic">⚖️</span>홀짝 비율</h3>
+        <p>6개의 홀:짝 비율. 6:0·0:6(전부 홀/짝)은 실제 3% 미만 → 제외.</p>
+        <p>보통 4:2, 3:3, 2:4 균형 조합만 남깁니다.</p>
+        <span class="tag">패턴 필터</span>
+      </div>
+      <div class="card">
+        <h3><span class="ic">➕</span>총합 (번호합)</h3>
+        <p>6개 합의 이론 범위 21~255지만 실제 당첨은 대략 <b>100~175</b>에 집중. 중심 구간 외 제외.</p>
+        <span class="tag">패턴 필터</span>
+      </div>
+      <div class="card">
+        <h3><span class="ic">🔢</span>끝수합</h3>
+        <p>각 번호 일의 자리만 합산. 12 이하·38 초과는 드묾 → 보통 13~38 추천.</p>
+        <span class="tag">패턴 필터</span>
+      </div>
+      <div class="card">
+        <h3><span class="ic">🔗</span>연번 (연속번호)</h3>
+        <p>23-24처럼 이어진 번호. 연번 없거나 2연번까지가 90%↑ → 3연번 이상 제외.</p>
+        <span class="tag">패턴 필터</span>
+      </div>
+      <div class="card">
+        <h3><span class="ic">📊</span>구간 분포</h3>
+        <p>1~9, 10~19… 구간으로 나눠 한 구간에 몰린 조합(예: 전부 10번대) 제외.</p>
+        <span class="tag">패턴 필터</span>
+      </div>
+      <div class="card">
+        <h3><span class="ic">🧩</span>1등 조합기법</h3>
+        <p>위 필터를 모두 통과시킨 후보로 최종 조합 생성. PART 5의 핵심 흐름입니다.</p>
+        <span class="tag">최종 합성</span>
+      </div>
+    </div>
+    <div class="callout">
+      📖 책 구성과 동일한 흐름: <b>PART 3(필수 통계) → PART 4(1등이 어려운 패턴) → PART 5(1등 조합기법)</b>,
+      즉 <b>"나쁜 모양 정의 → 제외 → 남은 후보로 조합"</b>.
+    </div>
+  </div>
+</section>
+
+<!-- STATS CHARTS -->
+<section id="stats">
+  <div class="wrap">
+    <h2><span class="num">02</span>통계는 사실 — 차트로 보기</h2>
+    <p class="lead">아래 분포는 역대 당첨 데이터의 일반적 경향을 도식화한 것입니다. 패턴은 실재하나, <b>예측력은 없다</b>는 점이 핵심입니다.</p>
+    <div class="grid g2">
+      <div class="chartbox">
+        <h3>홀짝 비율 분포</h3>
+        <p class="note">전부 홀/짝(6:0·0:6)은 극히 드묾 → 책이 제외하는 근거</p>
+        <div class="canvas-h"><canvas id="oddEven"></canvas></div>
+      </div>
+      <div class="chartbox">
+        <h3>번호 총합 분포</h3>
+        <p class="note">실제 당첨은 100~175 구간에 종 모양으로 집중</p>
+        <div class="canvas-h"><canvas id="sumDist"></canvas></div>
+      </div>
+      <div class="chartbox">
+        <h3>연속번호(연번) 개수</h3>
+        <p class="note">연번 0~2개가 90% 이상 — 3연번 이상은 희귀</p>
+        <div class="canvas-h"><canvas id="consec"></canvas></div>
+      </div>
+      <div class="chartbox">
+        <h3>등수별 당첨 확률 (로그 스케일)</h3>
+        <p class="note">3등은 약 1/35,000 — "다수 배출"이 가능한 이유의 핵심</p>
+        <div class="canvas-h"><canvas id="oddsChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHY -->
+<section id="why">
+  <div class="wrap">
+    <h2><span class="num">03</span>왜 "당첨자를 많이 배출"했다고 말할 수 있나</h2>
+    <p class="lead">기법이 효과 있어서가 아니라, <b>구조적으로 그렇게 보일 수밖에 없는</b> 이유들이 겹칩니다.</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3><span class="ic">👥</span>① 대수의 법칙</h3>
+        <p>구독자가 수만 명이고 매주 여러 게임씩 산다면, <b>분석 없이 무작위로 사도</b> 2년이면 3등 수백·2등 몇 명은 자연히 나옵니다.</p>
+        <p>아래 「산수」 섹션에서 기댓값을 직접 계산합니다.</p>
+      </div>
+      <div class="card">
+        <h3><span class="ic">🎯</span>② 제외수의 구조적 트릭</h3>
+        <p>6개를 다 빼지 않고 일부만 제외하면 당첨번호가 후보 안에 살아남을 여지가 큼.</p>
+        <p>→ "추천 범위 안에 당첨번호 5개가 있었다"는 <b>사후 자랑</b>이 쉬워집니다.</p>
+      </div>
+      <div class="card">
+        <h3><span class="ic">🏝️</span>③ 생존자 편향</h3>
+        <p>맞은 회차·맞은 사람만 부각되고, 빗나간 수많은 추천은 조용히 사라집니다.</p>
+        <p>"2등 8명"은 말해도 <b>전체 게임 수 대비 적중률(분모)</b>은 공개되지 않습니다.</p>
+      </div>
+      <div class="card">
+        <h3><span class="ic">🔮</span>④ 사후 확증 편향</h3>
+        <p>결과가 나온 뒤 "거봐, 우리 끝수합·홀짝에 맞았지?"는 설명하기 쉬움.</p>
+        <p>구간을 넓게 잡으면 거의 모든 결과가 사후적으로 "패턴에 부합".</p>
+      </div>
+    </div>
+    <div class="callout red">
+      🎲 <b>도박사의 오류:</b> 로또는 매 회차 <b>완전 독립 시행</b>. "과거에 4:2가 많았으니 이번에도"는 성립하지 않습니다.
+      이 기법들이 하는 일은 확률을 높이는 게 아니라 <b>후보 조합 수를 줄이는 것</b>뿐이며, 그 과정에서 1등 조합을 실수로 빼버릴 위험도 함께 커집니다.
+    </div>
+  </div>
+</section>
+
+<!-- MATH -->
+<section id="math">
+  <div class="wrap">
+    <h2><span class="num">04</span>대수의 법칙 — 직접 계산해 보기</h2>
+    <p class="lead">아래 슬라이더로 구독자 규모와 주당 게임 수를 바꿔보면, "분석 없이도" 나오는 3등·2등 기댓값을 볼 수 있습니다.</p>
+    <div class="card">
+      <div class="grid g2">
+        <div>
+          <label style="font-size:14px;color:var(--muted)">시청자(참여자) 수: <b id="vP" style="color:var(--gold)">20,000</b>명</label>
+          <input id="players" type="range" min="1000" max="100000" step="1000" value="20000" style="width:100%" />
+          <label style="font-size:14px;color:var(--muted)">1인당 주당 게임 수: <b id="vG" style="color:var(--gold)">5</b>게임</label>
+          <input id="games" type="range" min="1" max="20" step="1" value="5" style="width:100%" />
+          <label style="font-size:14px;color:var(--muted)">기간: <b id="vW" style="color:var(--gold)">104</b>주 (약 2년)</label>
+          <input id="weeks" type="range" min="10" max="156" step="1" value="104" style="width:100%" />
+        </div>
+        <div>
+          <table>
+            <tr><th>항목</th><th>값</th></tr>
+            <tr><td>총 구매 게임 수</td><td id="rTotal" class="ok">—</td></tr>
+            <tr><td>3등 기댓값 (1/35,724)</td><td id="r3" class="ok">—</td></tr>
+            <tr><td>2등 기댓값 (1/1,357,510)</td><td id="r2" class="ok">—</td></tr>
+            <tr><td>1등 기댓값 (1/8,145,060)</td><td id="r1" class="warn">—</td></tr>
+          </table>
+          <p style="font-size:13px;color:var(--muted);margin-top:12px">기본값(2만 명·5게임·104주)에서 3등 기댓값이 책의 "260명"과 근접하게 나옵니다.</p>
+        </div>
+      </div>
+    </div>
+    <div class="callout">
+      💡 즉 "3등 260명"은 <b>기법의 성과라기보다 모집단 크기의 산수</b>에 가깝습니다. 같은 규모면 어떤 추천 방식이든 비슷한 숫자가 나옵니다.
+    </div>
+  </div>
+</section>
+
+<!-- BIAS TABLE -->
+<section id="bias">
+  <div class="wrap">
+    <h2><span class="num">05</span>사실 vs. 주장 — 한눈에 구분</h2>
+    <p class="lead">통계 자체와 "예측 가능성" 주장을 분리하는 것이 이 책을 읽는 핵심입니다.</p>
+    <table>
+      <tr><th>구분</th><th>판정</th><th>설명</th></tr>
+      <tr><td>홀짝·총합·끝수합 패턴이 실재하는가</td><td class="ok">✅ 사실</td><td>역대 데이터 분포가 실제로 그러함</td></tr>
+      <tr><td>그 패턴으로 <b>다음 회차를 예측</b>할 수 있는가</td><td class="no">❌ 불가</td><td>매 회차 독립 시행 — 과거가 미래에 영향 없음</td></tr>
+      <tr><td>제외수로 적중 확률이 올라가는가</td><td class="no">❌ 아님</td><td>조합 수만 줄 뿐, 1등을 빼버릴 위험도 동반</td></tr>
+      <tr><td>"당첨자 다수 배출"이 사실일 수 있는가</td><td class="warn">⚠️ 부분적</td><td>사실이되 모집단 크기·생존자 편향의 산물</td></tr>
+      <tr><td>책의 통계 학습 자료로서 가치</td><td class="ok">✅ 있음</td><td>홀짝·합·끝수합 개념 학습용으론 유용</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- VERDICT -->
+<section id="verdict">
+  <div class="wrap">
+    <h2><span class="num">06</span>결론</h2>
+    <div class="steps">
+      <div class="step"><div class="n"></div><div class="t"><b>기법의 정체</b><span>"당첨 확률을 높이는 법"이 아니라 "역대 데이터에서 드문 모양을 피해 조합 수를 줄이는 정리법".</span></div></div>
+      <div class="step"><div class="n"></div><div class="t"><b>"다수 배출"의 정체</b><span>큰 구독자 풀 × 확률의 자연스러운 결과 + 맞은 것만 보여주는 편향.</span></div></div>
+      <div class="step"><div class="n"></div><div class="t"><b>책의 올바른 활용</b><span>당첨 보장 도구가 아닌 통계·확률 개념 학습서, 그리고 취미 가이드로.</span></div></div>
+    </div>
+    <div class="callout" style="margin-top:24px;text-align:center;font-size:16px">
+      <b>한 줄 요약</b><br/>
+      통계 패턴은 진짜지만 예측력은 없고, "당첨자 다수 배출"은 기법의 효과가 아니라 <b>모집단 크기와 편향</b>으로 설명된다.
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p class="disclaimer">
+      본 페이지는 도서 『로또9단 1등 분석기법』(이승윤)에 대한 <b>비평적·교육적 정리</b>이며 도서의 내용을 그대로 복제하지 않습니다.
+      차트의 분포 수치는 역대 로또 6/45의 일반적 경향을 도식화한 예시값으로, 회차·집계 기준에 따라 달라질 수 있습니다.
+      로또는 매 회차 독립 시행이며 어떤 분석도 당첨을 보장하지 않습니다. 과도한 구매는 삼가시기 바랍니다.
+    </p>
+    <div class="src">
+      <a href="https://product.kyobobook.co.kr/detail/S000001912688" target="_blank" rel="noopener">교보문고 도서정보</a>
+      <a href="https://www.lottobook.co.kr/intro/intro_lotto_stats.php" target="_blank" rel="noopener">로또북 분석방법</a>
+      <a href="https://lottotapa.com/note/johab_note.php" target="_blank" rel="noopener">로또타파 조합분석</a>
+      <a href="https://dhlottery.co.kr/gameResult.do?method=statOddEven" target="_blank" rel="noopener">동행복권 공식통계</a>
+    </div>
+    <p style="margin-top:18px">© 2026 lottonumber001 · 교육·비평 목적 대시보드</p>
+  </div>
+</footer>
+
+<script>
+const COL={accent:'#5b8cff',accent2:'#9b6bff',gold:'#ffcc4d',green:'#3ddc97',red:'#ff6b6b',amber:'#ffb84d',muted:'#9aa6c8',line:'#27345f'};
+Chart.defaults.color=COL.muted;
+Chart.defaults.font.family="'Noto Sans KR',sans-serif";
+const gridCfg={grid:{color:'rgba(39,52,95,.5)'}};
+
+// 홀짝
+new Chart(document.getElementById('oddEven'),{
+  type:'bar',
+  data:{labels:['6:0','5:1','4:2','3:3','2:4','1:5','0:6'],
+    datasets:[{label:'출현 비중(%)',data:[1.0,9,23,33,23,9,1.0],
+      backgroundColor:['#ff6b6b','#ffb84d','#5b8cff','#3ddc97','#5b8cff','#ffb84d','#ff6b6b'],borderRadius:6}]},
+  options:{plugins:{legend:{display:false}},scales:{y:{...gridCfg,beginAtZero:true},x:gridCfg}}
+});
+// 총합
+const sx=[],sy=[];for(let s=60;s<=210;s+=10){sx.push(s);const m=138,sd=33;sy.push(+(100*Math.exp(-((s-m)**2)/(2*sd*sd))).toFixed(1));}
+new Chart(document.getElementById('sumDist'),{
+  type:'line',
+  data:{labels:sx,datasets:[{label:'상대 빈도',data:sy,borderColor:COL.gold,backgroundColor:'rgba(255,204,77,.15)',fill:true,tension:.4,pointRadius:0}]},
+  options:{plugins:{legend:{display:false}},scales:{y:{...gridCfg,beginAtZero:true},x:gridCfg}}
+});
+// 연번
+new Chart(document.getElementById('consec'),{
+  type:'doughnut',
+  data:{labels:['연번 0개','연번 1쌍(2연번)','연번 2쌍 이상','3연번 이상'],
+    datasets:[{data:[49,40,8,3],backgroundColor:[COL.accent,COL.green,COL.amber,COL.red],borderColor:'#0b1020',borderWidth:3}]},
+  options:{plugins:{legend:{position:'bottom'}},cutout:'58%'}
+});
+// odds (log)
+new Chart(document.getElementById('oddsChart'),{
+  type:'bar',
+  data:{labels:['1등','2등','3등','4등','5등'],
+    datasets:[{label:'당첨 확률 (1/N)',data:[8145060,1357510,35724,733,45],
+      backgroundColor:[COL.red,COL.amber,COL.gold,COL.green,COL.accent],borderRadius:6}]},
+  options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'1 / '+c.raw.toLocaleString()}}},
+    scales:{y:{type:'logarithmic',...gridCfg,title:{display:true,text:'1/N (로그)'}},x:gridCfg}}
+});
+
+// calculator
+const P=document.getElementById('players'),G=document.getElementById('games'),W=document.getElementById('weeks');
+const vP=document.getElementById('vP'),vG=document.getElementById('vG'),vW=document.getElementById('vW');
+const rTotal=document.getElementById('rTotal'),r3=document.getElementById('r3'),r2=document.getElementById('r2'),r1=document.getElementById('r1');
+function calc(){
+  const p=+P.value,g=+G.value,w=+W.value;
+  vP.textContent=p.toLocaleString();vG.textContent=g;vW.textContent=w;
+  const total=p*g*w;
+  rTotal.textContent=total.toLocaleString()+' 게임';
+  r3.textContent=(total/35724).toFixed(1)+' 명';
+  r2.textContent=(total/1357510).toFixed(2)+' 명';
+  r1.textContent=(total/8145060).toFixed(3)+' 명';
+}
+[P,G,W].forEach(e=>e.addEventListener('input',calc));calc();
+</script>
+</body>
+</html>
