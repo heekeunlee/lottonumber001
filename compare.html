@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>2만원 실거래 비교 — 예측 vs 실제구매 | lottonumber001</title>
+<meta name="description" content="책 기법 예측 20게임(서로 다른 시드) vs 실제 구매 20게임을 실제 당첨번호와 비교하는 실거래 실험" />
+<script>(function(){try{var s=localStorage.getItem('lotto-theme');if(!s){s=window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',s);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#0b1020;--card:#161f3d;--card2:#1b2750;--ink:#eaf0ff;--muted:#9aa6c8;--line:#27345f;--accent:#5b8cff;--gold:#ffcc4d;--green:#3ddc97;--red:#ff6b6b;--amber:#ffb84d;--radius:16px;--body-grad:linear-gradient(180deg,#0b1020,#0e1530 40%,#0b1020);--nav-bg:rgba(11,16,32,.82)}
+  html[data-theme="light"]{--bg:#f4f7ff;--card:#fff;--card2:#f3f6ff;--ink:#15203c;--muted:#5b6a8c;--line:#d7e0f5;--accent:#2f63ff;--gold:#c98a00;--green:#11a06a;--red:#e23b3b;--amber:#c97a00;--body-grad:linear-gradient(180deg,#f4f7ff,#eef3ff 40%,#f4f7ff);--nav-bg:rgba(244,247,255,.85)}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Noto Sans KR',system-ui,sans-serif;background:var(--body-grad);color:var(--ink);line-height:1.6;transition:background .3s,color .3s}
+  a{color:var(--accent)}.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  #themeToggle{position:fixed;top:16px;right:16px;z-index:60;display:flex;align-items:center;gap:8px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:9px 15px;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+  @media(max-width:560px){#themeToggle{font-size:0;padding:8px 12px}#themeToggle .ticon{font-size:18px}}
+  header.hero{padding:56px 0 36px;text-align:center;background:radial-gradient(900px 380px at 20% -10%,rgba(91,140,255,.22),transparent 60%);border-bottom:1px solid var(--line)}
+  .badge{display:inline-block;font-size:13px;color:var(--gold);border:1px solid rgba(255,204,77,.35);background:rgba(255,204,77,.08);padding:6px 14px;border-radius:999px;margin-bottom:14px}
+  header.hero h1{font-size:clamp(24px,5vw,38px);margin:6px 0 10px;font-weight:900;letter-spacing:-1px}
+  header.hero .sub{color:var(--muted);max-width:680px;margin:0 auto;font-size:clamp(14px,2.3vw,17px)}
+  nav.toc{position:sticky;top:0;z-index:20;background:var(--nav-bg);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  nav.toc .wrap{display:flex;gap:6px;overflow-x:auto;padding:10px 20px}
+  nav.toc a{white-space:nowrap;color:var(--muted);text-decoration:none;font-size:14px;padding:8px 12px;border-radius:10px}
+  nav.toc a:hover{color:var(--ink);background:var(--card)}nav.toc a.home{color:var(--accent)}
+  section{padding:38px 0}
+  h2{font-size:clamp(19px,3.2vw,25px);margin:0 0 14px;font-weight:800}
+  .actual-box{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--gold);border-radius:var(--radius);padding:18px;text-align:center;margin-bottom:22px}
+  .actual-box .lbl{font-size:13px;color:var(--muted)}
+  .actual-box .nums{font-size:20px;font-weight:900;margin-top:6px}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:820px){.cols{grid-template-columns:1fr}}
+  .panel{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+  .panel.pred{border-top:3px solid var(--amber)}.panel.user{border-top:3px solid var(--green)}
+  .panel h3{margin:0 0 4px;font-size:18px;display:flex;align-items:center;gap:8px}
+  .panel .tot{font-size:13px;color:var(--muted);margin-bottom:12px}
+  .row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .row:last-child{border-bottom:0}
+  .row .i{font-size:12px;color:var(--muted);min-width:24px}
+  .ball{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:12px;color:#10162b}
+  .ball.hit{outline:2.5px solid var(--green);outline-offset:1px}
+  .gr{font-size:11.5px;margin-left:auto;color:var(--muted);font-weight:700}
+  .gr.win{color:var(--green)}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:6px 0 22px}
+  @media(max-width:640px){.summary{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center}
+  .kpi .v{font-size:clamp(18px,3.4vw,26px);font-weight:900;color:var(--gold)}
+  .kpi .l{font-size:12px;color:var(--muted);margin-top:3px}
+  .callout{border-left:4px solid var(--accent);background:rgba(91,140,255,.08);padding:14px 18px;border-radius:10px;margin:0 0 20px;font-size:14.5px}
+  .callout.red{border-color:var(--red);background:rgba(255,107,107,.08)}
+  .pending-note{background:linear-gradient(180deg,var(--card),var(--card2));border:1px dashed var(--line);border-radius:var(--radius);padding:18px;color:var(--muted);font-size:14px}
+  .loading{text-align:center;padding:40px;color:var(--muted)}
+  footer{padding:34px 0 60px;text-align:center;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<button id="themeToggle" type="button" aria-label="테마 전환"><span class="ticon" id="themeIcon">🌙</span><span id="themeLabel">다크</span></button>
+
+<header class="hero"><div class="wrap">
+  <span class="badge">💸 2만원 실거래 비교 실험</span>
+  <h1>예측 20게임 vs 실제구매 20게임</h1>
+  <p class="sub">책 기법으로 만든 예측 20게임(<b>각 게임 다른 시드</b>)과 실제 판매점에서 산 20게임을
+     같은 회차 당첨번호로 채점해 <b>"분석 = 무작위"</b>를 실거래로 확인합니다.</p>
+</div></header>
+
+<nav class="toc"><div class="wrap">
+  <a class="home" href="./index.html">← 책 분석</a>
+  <a href="./simulator.html">🧪 시뮬레이터</a>
+  <a href="./tracker.html">🔒 추적기</a>
+</div></nav>
+
+<div id="app"><div class="loading">📋 실험 데이터(compare_ledger.json)를 불러오는 중…</div></div>
+
+<footer><div class="wrap">
+  <p>데이터: <a href="https://github.com/heekeunlee/lottonumber001/blob/main/analysis/compare_ledger.json">compare_ledger.json</a>
+     · 생성기: <a href="https://github.com/heekeunlee/lottonumber001/blob/main/analysis/buy_set.py">buy_set.py</a></p>
+  <p style="max-width:720px;margin:12px auto 0;font-size:12.5px">교육·연구 목적. 모든 게임의 당첨 확률은 1/8,145,060로 동일하며 분석은 당첨을 보장하지 않습니다.</p>
+  <p style="margin-top:12px">© 2026 lottonumber001</p>
+</div></footer>
+
+<script>
+const BALLCOL=n=>n<=10?'#ffd24d':n<=20?'#7fd0ff':n<=30?'#ff8f8f':n<=40?'#9be39b':'#caa6ff';
+const tBtn=document.getElementById('themeToggle'),tIcon=document.getElementById('themeIcon'),tLabel=document.getElementById('themeLabel');
+function applyTheme(m){document.documentElement.setAttribute('data-theme',m);const l=m==='light';tIcon.textContent=l?'☀️':'🌙';tLabel.textContent=l?'라이트':'다크';try{localStorage.setItem('lotto-theme',m);}catch(e){}}
+tBtn.addEventListener('click',()=>{const c=document.documentElement.getAttribute('data-theme')==='light'?'light':'dark';applyTheme(c==='light'?'dark':'light');});
+applyTheme(document.documentElement.getAttribute('data-theme')==='light'?'light':'dark');
+
+fetch('./analysis/compare_ledger.json').then(r=>r.json()).then(render).catch(e=>{
+  document.getElementById('app').innerHTML='<div class="loading">데이터를 불러오지 못했습니다.<br><small>'+e+'</small></div>';
+});
+
+function render(L){
+  const rounds=Object.values(L).sort((a,b)=>b.round-a.round);
+  if(!rounds.length){document.getElementById('app').innerHTML='<div class="loading">아직 실험이 없습니다.</div>';return;}
+  document.getElementById('app').innerHTML=rounds.map(roundHTML).join('');
+}
+
+function setBlock(games, aset, title, cls, icon){
+  if(!games) return `<div class="panel ${cls}"><h3>${icon} ${title}</h3>
+    <div class="pending-note">아직 기록되지 않았습니다.<br>실제 구매 후 번호를 입력하면 표시됩니다.</div></div>`;
+  const winTiers=['1등','2등','3등','4등','5등'];
+  let wins=0, tot=0;
+  const rows=games.map(g=>{
+    const hit=aset?g.nums.filter(n=>aset.has(n)).length:null;
+    if(g.grade&&winTiers.includes(g.grade))wins++;
+    if(hit!=null)tot+=hit;
+    const balls=g.nums.map(n=>`<span class="ball${aset&&aset.has(n)?' hit':''}" style="background:${BALLCOL(n)}">${n}</span>`).join('');
+    const gr=g.grade?`<span class="gr ${winTiers.includes(g.grade)?'win':''}">${g.match}일치${g.bonus?'+B':''}·${g.grade}</span>`:'';
+    return `<div class="row"><span class="i">${g.i}</span>${balls}${gr}</div>`;
+  }).join('');
+  const sub=aset?`최고 일치 ${Math.max(...games.map(g=>g.match))} · 당첨 ${wins}게임 · 총일치 ${tot}`:'채점 대기';
+  return `<div class="panel ${cls}"><h3>${icon} ${title}</h3><div class="tot">${sub}</div>${rows}</div>`;
+}
+
+function roundHTML(e){
+  const aset=e.actual?new Set(e.actual.nums):null;
+  const actualHTML=e.actual
+    ? `<div class="actual-box"><div class="lbl">🎯 ${e.round}회 실제 당첨번호 (추첨 ${e.draw_date})</div>
+        <div class="nums">${e.actual.nums.join(' · ')} <span style="color:var(--muted)">+ 보너스 ${e.actual.bonus}</span></div></div>`
+    : `<div class="actual-box" style="border-color:var(--line)"><div class="lbl">⏳ ${e.round}회 추첨 대기 (예정 ${e.draw_date})</div>
+        <div class="nums" style="color:var(--muted)">추첨 후 채점됩니다</div></div>`;
+
+  let resultHTML='';
+  if(e.result){
+    const p=e.result.predicted||{}, u=e.result.user||{};
+    const cnt=(o)=>['1등','2등','3등','4등','5등'].reduce((s,k)=>s+(o[k]||0),0);
+    resultHTML=`
+     <div class="summary">
+       <div class="kpi"><div class="v">${cnt(p)}</div><div class="l">📕 예측 당첨게임</div></div>
+       <div class="kpi"><div class="v">${e.result.pred_fixed_won!=null?e.result.pred_fixed_won.toLocaleString()+'원':'—'}</div><div class="l">예측 고정상금</div></div>
+       <div class="kpi"><div class="v">${e.result.user?cnt(u):'—'}</div><div class="l">🎲 실제구매 당첨게임</div></div>
+       <div class="kpi"><div class="v">${e.result.user_fixed_won!=null?e.result.user_fixed_won.toLocaleString()+'원':'—'}</div><div class="l">실구매 고정상금</div></div>
+     </div>
+     <div class="callout red">투자 ${e.budget.toLocaleString()}원 × 2세트. 예측·실구매 성적이 비슷하게 <b>둘 다 원금 미만</b>이면,
+       "분석은 무작위와 다르지 않다 + 음의 기대수익"이 실거래로 입증된 것입니다.</div>`;
+  } else {
+    resultHTML=`<div class="callout">예측 ${e.games}게임(${e.budget.toLocaleString()}원)은 <b>추첨 전 잠금(${e.locked_at})</b>되었습니다.
+      각 게임은 <b>서로 다른 시드</b>로 만들어 번호가 전부 다릅니다 — 같은 기법이라도 시드만 바꾸면 결과가 달라진다는 증거입니다.</div>`;
+  }
+
+  return `<section><div class="wrap">
+    <h2>${e.round}회 비교 실험</h2>
+    ${actualHTML}${resultHTML}
+    <div class="cols">
+      ${setBlock(e.predicted, aset, `예측 세트 (책 기법·다른 시드 ×${e.games})`, 'pred', '📕')}
+      ${setBlock(e.user, aset, '실제 구매 세트', 'user', '🎲')}
+    </div>
+  </div></section>`;
+}
+</script>
+</body>
+</html>
