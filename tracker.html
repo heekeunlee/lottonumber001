@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>예측 추적기 (사전등록) — lottonumber001</title>
+<meta name="description" content="추첨 전 잠근 로또 예상번호를 실제 당첨번호와 매주 대조하는 사전등록 추적 대시보드" />
+<script>
+  (function(){try{var s=localStorage.getItem('lotto-theme');if(!s){s=window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',s);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#0b1020;--card:#161f3d;--card2:#1b2750;--ink:#eaf0ff;--muted:#9aa6c8;--line:#27345f;--accent:#5b8cff;--gold:#ffcc4d;--green:#3ddc97;--red:#ff6b6b;--amber:#ffb84d;--radius:16px;--body-grad:linear-gradient(180deg,#0b1020,#0e1530 40%,#0b1020);--nav-bg:rgba(11,16,32,.82)}
+  html[data-theme="light"]{--bg:#f4f7ff;--card:#fff;--card2:#f3f6ff;--ink:#15203c;--muted:#5b6a8c;--line:#d7e0f5;--accent:#2f63ff;--gold:#c98a00;--green:#11a06a;--red:#e23b3b;--amber:#c97a00;--body-grad:linear-gradient(180deg,#f4f7ff,#eef3ff 40%,#f4f7ff);--nav-bg:rgba(244,247,255,.85)}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Noto Sans KR',system-ui,sans-serif;background:var(--body-grad);color:var(--ink);line-height:1.65;transition:background .3s,color .3s}
+  a{color:var(--accent)}.wrap{max-width:1000px;margin:0 auto;padding:0 20px}
+  #themeToggle{position:fixed;top:16px;right:16px;z-index:60;display:flex;align-items:center;gap:8px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:9px 15px;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+  @media(max-width:560px){#themeToggle{font-size:0;padding:8px 12px}#themeToggle .ticon{font-size:18px}}
+  header.hero{padding:60px 0 40px;text-align:center;background:radial-gradient(900px 380px at 20% -10%,rgba(91,140,255,.22),transparent 60%);border-bottom:1px solid var(--line)}
+  .badge{display:inline-block;font-size:13px;color:var(--gold);border:1px solid rgba(255,204,77,.35);background:rgba(255,204,77,.08);padding:6px 14px;border-radius:999px;margin-bottom:14px}
+  header.hero h1{font-size:clamp(25px,5vw,40px);margin:6px 0 10px;font-weight:900;letter-spacing:-1px}
+  header.hero .sub{color:var(--muted);max-width:660px;margin:0 auto;font-size:clamp(14px,2.3vw,17px)}
+  nav.toc{position:sticky;top:0;z-index:20;background:var(--nav-bg);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  nav.toc .wrap{display:flex;gap:6px;overflow-x:auto;padding:10px 20px}
+  nav.toc a{white-space:nowrap;color:var(--muted);text-decoration:none;font-size:14px;padding:8px 12px;border-radius:10px}
+  nav.toc a:hover{color:var(--ink);background:var(--card)}nav.toc a.home{color:var(--accent)}
+  section{padding:44px 0}
+  h2{font-size:clamp(20px,3.2vw,26px);margin:0 0 16px;font-weight:800}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:8px}
+  @media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:var(--radius);padding:18px;text-align:center}
+  .kpi .v{font-size:clamp(20px,3.6vw,28px);font-weight:900;color:var(--gold);letter-spacing:-1px}
+  .kpi .l{font-size:12.5px;color:var(--muted);margin-top:4px}
+  .round{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+  .round .head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .round .rnd{font-size:18px;font-weight:800}
+  .pill{font-size:12px;font-weight:800;padding:4px 10px;border-radius:8px}
+  .pill.pending{background:rgba(255,184,77,.15);color:var(--amber);border:1px solid rgba(255,184,77,.4)}
+  .pill.scored{background:rgba(61,220,151,.15);color:var(--green);border:1px solid rgba(61,220,151,.4)}
+  .pill.lose{background:rgba(255,107,107,.12);color:var(--red);border:1px solid rgba(255,107,107,.35)}
+  .meta{font-size:12.5px;color:var(--muted);margin-left:auto}
+  .line{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:7px 0;border-bottom:1px dashed var(--line)}
+  .line:last-child{border-bottom:0}
+  .line .g{font-size:13px;color:var(--muted);min-width:26px}
+  .ball{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;color:#10162b}
+  .ball.hit{outline:3px solid var(--green);outline-offset:1px}
+  .grade{font-size:12.5px;margin-left:auto;font-weight:700}
+  .grade.win{color:var(--green)}.grade.lose{color:var(--muted)}
+  .actual{font-size:13px;color:var(--muted);margin:6px 0 12px}
+  .callout{border-left:4px solid var(--accent);background:rgba(91,140,255,.08);padding:14px 18px;border-radius:10px;margin:0 0 22px;font-size:14.5px}
+  .loading{text-align:center;padding:40px;color:var(--muted)}
+  footer{padding:36px 0 60px;text-align:center;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<button id="themeToggle" type="button" aria-label="테마 전환"><span class="ticon" id="themeIcon">🌙</span><span id="themeLabel">다크</span></button>
+
+<header class="hero"><div class="wrap">
+  <span class="badge">🔒 사전등록 추적 (pre-registration)</span>
+  <h1>예측 추적기 — 추첨 전에 못박고 채점</h1>
+  <p class="sub">매주 추첨 <b>전</b>에 git에 잠근 예상번호를 실제 당첨번호와 대조합니다.
+     "맞은 것만 보여주기(생존자 편향)"가 구조적으로 불가능한 정직한 시연입니다.</p>
+</div></header>
+
+<nav class="toc"><div class="wrap">
+  <a class="home" href="./index.html">← 책 분석</a>
+  <a href="./simulator.html">🧪 시뮬레이터</a>
+  <a href="#stats">누적 성적</a>
+  <a href="#rounds">회차별 기록</a>
+</div></nav>
+
+<div id="app"><div class="loading">📋 예측 원장(predictions_ledger.json)을 불러오는 중…</div></div>
+
+<footer><div class="wrap">
+  <p>원장: <a href="https://github.com/heekeunlee/lottonumber001/blob/main/analysis/predictions_ledger.json">predictions_ledger.json</a>
+     · 생성기: <a href="https://github.com/heekeunlee/lottonumber001/blob/main/analysis/weekly_predict.py">weekly_predict.py</a></p>
+  <p style="max-width:720px;margin:12px auto 0;font-size:12.5px">교육·연구·비평 목적. 예상번호의 당첨 확률은 무작위와 동일(1/8,145,060)이며 어떤 분석도 당첨을 보장하지 않습니다.</p>
+  <p style="margin-top:12px">© 2026 lottonumber001</p>
+</div></footer>
+
+<script>
+const BALLCOL=n=>n<=10?'#ffd24d':n<=20?'#7fd0ff':n<=30?'#ff8f8f':n<=40?'#9be39b':'#caa6ff';
+const tBtn=document.getElementById('themeToggle'),tIcon=document.getElementById('themeIcon'),tLabel=document.getElementById('themeLabel');
+function applyTheme(m){document.documentElement.setAttribute('data-theme',m);const l=m==='light';tIcon.textContent=l?'☀️':'🌙';tLabel.textContent=l?'라이트':'다크';try{localStorage.setItem('lotto-theme',m);}catch(e){}}
+tBtn.addEventListener('click',()=>{const c=document.documentElement.getAttribute('data-theme')==='light'?'light':'dark';applyTheme(c==='light'?'dark':'light');});
+applyTheme(document.documentElement.getAttribute('data-theme')==='light'?'light':'dark');
+
+fetch('./analysis/predictions_ledger.json').then(r=>r.json()).then(render).catch(e=>{
+  document.getElementById('app').innerHTML='<div class="loading">원장을 불러오지 못했습니다.<br><small>'+e+'</small></div>';
+});
+
+function render(L){
+  const rounds=Object.values(L).sort((a,b)=>b.round-a.round);
+  const scored=rounds.filter(r=>r.status==='scored');
+  let totalLines=0, prizeLines=0, totalMatch=0, jackpot=0;
+  scored.forEach(r=>{(r.matches||[]).forEach(m=>{totalLines++;totalMatch+=m.match;
+    const win=['1등','2등','3등','4등','5등'].includes(m.grade);if(win)prizeLines++;if(m.grade==='1등')jackpot++;});});
+  const ballHTML=(ns,aset)=>ns.map(n=>`<div class="ball${aset&&aset.has(n)?' hit':''}" style="background:${BALLCOL(n)}">${n}</div>`).join('');
+  const expPrize=(totalLines*0.0232).toFixed(1); // 3개이상 일치 이론 기대(≈2.32%/게임)
+
+  const statsHTML=`
+   <section id="stats"><div class="wrap">
+    <h2>누적 성적 (사전등록 ${scored.length}회 채점)</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="v">${jackpot}</div><div class="l">1등 (당연히 0 예상)</div></div>
+      <div class="kpi"><div class="v">${prizeLines}</div><div class="l">5등↑ 당첨 게임</div></div>
+      <div class="kpi"><div class="v">${expPrize}</div><div class="l">무작위 이론 기대(게임수×2.32%)</div></div>
+      <div class="kpi"><div class="v">${totalLines?(totalMatch/totalLines).toFixed(2):'—'}</div><div class="l">게임당 평균 일치(이론 0.80)</div></div>
+    </div>
+    <div class="callout" style="margin-top:16px">실측 당첨이 <b>무작위 이론 기대와 비슷하게</b> 머무는지 보세요. 그게 "기법은 무작위와 같다"의 실시간 증거입니다.
+      ${scored.length<3?'<br><b>아직 표본이 적습니다</b> — 추첨이 누적될수록 결론이 또렷해집니다.':''}</div>
+   </div></section>`;
+
+  const roundsHTML=rounds.map(r=>{
+    const aset=r.actual?new Set(r.actual.nums):null;
+    const status=r.status==='scored'?(['1등','2등','3등','4등','5등'].includes(r.best)?'scored':'lose'):'pending';
+    const pill=r.status==='pending'?`<span class="pill pending">⏳ 추첨 대기</span>`
+      :status==='scored'?`<span class="pill scored">✅ 최고 ${r.best}</span>`
+      :`<span class="pill lose">전부 꽝</span>`;
+    const linesHTML=r.lines.map((ln,i)=>{
+      const mm=r.matches?r.matches[i]:null;
+      const gr=mm?`<span class="grade ${['1등','2등','3등','4등','5등'].includes(mm.grade)?'win':'lose'}">${mm.match}일치${mm.bonus?'+B':''} · ${mm.grade}</span>`:'';
+      return `<div class="line"><span class="g">${'①②③④⑤'[i]}</span>${ballHTML(ln,aset)}${gr}</div>`;
+    }).join('');
+    const actualHTML=r.actual?`<div class="actual">🎯 실제 당첨: <b>${r.actual.nums.join(' · ')}</b> + 보너스 ${r.actual.bonus}</div>`:'';
+    return `<div class="round">
+      <div class="head"><span class="rnd">${r.round}회</span>${pill}
+        <span class="meta">추첨 ${r.draw_date} · 잠금 ${r.locked_at}</span></div>
+      ${actualHTML}${linesHTML}</div>`;
+  }).join('');
+
+  document.getElementById('app').innerHTML=statsHTML+
+    `<section id="rounds"><div class="wrap"><h2>회차별 기록</h2>${roundsHTML}</div></section>`;
+}
+</script>
+</body>
+</html>
