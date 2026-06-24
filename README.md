@@ -19,10 +19,32 @@
 > 통계 패턴은 **진짜**지만 예측력은 **없고**, "당첨자 다수 배출"은 기법의 효과가 아니라
 > **모집단 크기와 편향(생존자·사후 확증)**으로 설명된다. 로또는 매 회차 독립 시행이다.
 
+## 🧪 예측 시뮬레이터 & 수학적 검증
+
+[`simulator.html`](https://heekeunlee.github.io/lottonumber001/simulator.html) — 동행복권 **전체 회차(1~1229) 실제 데이터**로 책의 기법을 구현해
+다음 주 예상번호를 생성하고, 그 예측이 무작위와 통계적으로 동일함을 검정합니다.
+
+| 검정 | 결과 | 해석 |
+|---|---|---|
+| 번호 빈도 균일성 (χ², df=44) | p ≈ 0.96 | 편향 없음 — "잘 나오는 번호"는 잡음 |
+| "나올 때 됐다" 자기상관 | p ≈ 0.87 | 독립 — 미출기간표는 도박사의 오류 |
+| 미출 간격 무기억성 (CV) | ≈ 0.94 | 기하분포 — 완전 무기억 |
+| 필터 통과율(실제 당첨) | 65.7% | 실제 1등의 약 34%를 필터가 배제 |
+| 백테스트(기법 vs 무작위) | p ≈ 0.41 | 통계적으로 동일 — 기법의 이득 0 |
+
+- 분석 코드: [`analysis/simulate.py`](analysis/simulate.py) (seed 고정, 재현 가능)
+- 논문형 리포트: [`analysis/report.md`](analysis/report.md)
+- 데이터: [`data/draws.json`](data/draws.json) (정제), `data/raw_winner_all.json` (원본)
+
+```bash
+python3 analysis/simulate.py   # results.json / draws.json 재생성
+```
+
 ## 기술
 
-- 순수 HTML/CSS/JS (빌드 불필요)
-- [Chart.js](https://www.chartjs.org/) (CDN)
+- 순수 HTML/CSS/JS (빌드 불필요), 라이트/다크 토글
+- [Chart.js](https://www.chartjs.org/) (CDN) · `results.json` 동적 로드
+- 분석: Python 표준 라이브러리만 사용 (의존성 없음)
 - GitHub Pages 정적 호스팅
 
 ## 면책

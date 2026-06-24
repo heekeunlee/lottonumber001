@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>로또 예측 시뮬레이터 & 수학적 검증 — lottonumber001</title>
+<meta name="description" content="역대 동행복권 데이터로 책의 기법을 구현한 로또 예측 시뮬레이터와, 그 예측이 무의미함을 보이는 통계적 타당성 검증" />
+<script>
+  (function(){try{var s=localStorage.getItem('lotto-theme');if(!s){s=window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',s);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0b1020;--card:#161f3d;--card2:#1b2750;--ink:#eaf0ff;--muted:#9aa6c8;--line:#27345f;
+    --accent:#5b8cff;--accent2:#9b6bff;--gold:#ffcc4d;--green:#3ddc97;--red:#ff6b6b;--amber:#ffb84d;--radius:16px;
+    --body-grad:linear-gradient(180deg,#0b1020,#0e1530 40%,#0b1020);
+    --nav-bg:rgba(11,16,32,.82);--chart-grid:rgba(39,52,95,.5);
+  }
+  html[data-theme="light"]{
+    --bg:#f4f7ff;--card:#fff;--card2:#f3f6ff;--ink:#15203c;--muted:#5b6a8c;--line:#d7e0f5;
+    --accent:#2f63ff;--accent2:#7a4dff;--gold:#c98a00;--green:#11a06a;--red:#e23b3b;--amber:#c97a00;
+    --body-grad:linear-gradient(180deg,#f4f7ff,#eef3ff 40%,#f4f7ff);
+    --nav-bg:rgba(244,247,255,.85);--chart-grid:rgba(120,140,190,.25);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Noto Sans KR',system-ui,sans-serif;background:var(--body-grad);color:var(--ink);line-height:1.65;transition:background .3s,color .3s}
+  a{color:var(--accent)}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  #themeToggle{position:fixed;top:16px;right:16px;z-index:60;display:flex;align-items:center;gap:8px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:9px 15px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+  #themeToggle:hover{transform:translateY(-2px)}
+  @media(max-width:560px){#themeToggle{font-size:0;padding:8px 12px}#themeToggle .ticon{font-size:18px}}
+  header.hero{padding:64px 0 44px;text-align:center;background:radial-gradient(900px 380px at 20% -10%,rgba(91,140,255,.22),transparent 60%),radial-gradient(800px 360px at 90% 0%,rgba(155,107,255,.2),transparent 60%);border-bottom:1px solid var(--line)}
+  .badge{display:inline-block;font-size:13px;color:var(--gold);border:1px solid rgba(255,204,77,.35);background:rgba(255,204,77,.08);padding:6px 14px;border-radius:999px;margin-bottom:16px}
+  header.hero h1{font-size:clamp(26px,5vw,42px);margin:6px 0 10px;font-weight:900;letter-spacing:-1px}
+  header.hero .sub{color:var(--muted);max-width:680px;margin:0 auto;font-size:clamp(15px,2.4vw,17px)}
+  nav.toc{position:sticky;top:0;z-index:20;background:var(--nav-bg);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  nav.toc .wrap{display:flex;gap:6px;overflow-x:auto;padding:10px 20px}
+  nav.toc a{white-space:nowrap;color:var(--muted);text-decoration:none;font-size:14px;padding:8px 12px;border-radius:10px}
+  nav.toc a:hover{color:var(--ink);background:var(--card)}
+  nav.toc a.home{color:var(--accent)}
+  section{padding:50px 0;border-bottom:1px solid rgba(39,52,95,.5)}
+  h2{font-size:clamp(22px,3.4vw,30px);margin:0 0 6px;font-weight:800;letter-spacing:-.5px}
+  h2 .num{color:var(--accent);font-weight:900;margin-right:10px}
+  .lead{color:var(--muted);margin:0 0 24px;font-size:16px}
+  .card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .grid{display:grid;gap:18px}.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:var(--radius);padding:18px;text-align:center}
+  .kpi .v{font-size:clamp(20px,3.6vw,28px);font-weight:900;color:var(--gold);letter-spacing:-1px}
+  .kpi .l{font-size:12.5px;color:var(--muted);margin-top:4px}
+  .pred-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 0;border-bottom:1px dashed var(--line)}
+  .pred-line:last-child{border-bottom:0}
+  .pred-line .g{font-size:13px;color:var(--muted);min-width:54px}
+  .ball{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#10162b;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+  .meta{font-size:12.5px;color:var(--muted);margin-left:auto}
+  table{width:100%;border-collapse:collapse;font-size:14.5px;border-radius:12px;overflow:hidden}
+  th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--line)}
+  th{background:var(--card2);font-weight:700}td{color:var(--ink)}
+  .ok{color:var(--green);font-weight:700}.no{color:var(--red);font-weight:700}.warn{color:var(--amber);font-weight:700}
+  .callout{border-left:4px solid var(--gold);background:rgba(255,204,77,.07);padding:16px 20px;border-radius:10px;margin:18px 0}
+  .callout.red{border-color:var(--red);background:rgba(255,107,107,.08)}
+  .callout.blue{border-color:var(--accent);background:rgba(91,140,255,.08)}
+  .callout b{color:var(--ink)}
+  .verdict{display:inline-block;font-size:12px;font-weight:800;padding:4px 10px;border-radius:8px;margin-left:8px}
+  .verdict.h0{background:rgba(61,220,151,.15);color:var(--green);border:1px solid rgba(61,220,151,.4)}
+  .chartbox{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+  .chartbox h3{margin:0 0 4px;font-size:17px}.chartbox p.note{font-size:13px;color:var(--muted);margin:0 0 14px}
+  .canvas-h{position:relative;height:300px}
+  .test-card h3{margin:0 0 6px;font-size:17px}
+  .stat{font-family:ui-monospace,Menlo,monospace;color:var(--gold);font-weight:700}
+  footer{padding:40px 0 60px;text-align:center;color:var(--muted);font-size:13px}
+  .loading{text-align:center;padding:40px;color:var(--muted)}
+</style>
+</head>
+<body>
+<button id="themeToggle" type="button" aria-label="테마 전환"><span class="ticon" id="themeIcon">🌙</span><span id="themeLabel">다크</span></button>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="badge">🧪 시뮬레이터 + 수학적 타당성 검증</span>
+    <h1>로또 예측 시뮬레이터 &amp; 무의미성 검증</h1>
+    <p class="sub">동행복권 <b id="hRounds">전체</b> 회차 실제 데이터로 책의 기법을 구현해 다음 주 번호를 생성하고,
+       그 예측이 <b>무작위와 통계적으로 동일</b>함을 검정으로 보입니다.</p>
+  </div>
+</header>
+
+<nav class="toc"><div class="wrap">
+  <a class="home" href="./index.html">← 책 분석</a>
+  <a href="#pred">다음주 예상번호</a>
+  <a href="#tests">3대 검정</a>
+  <a href="#filter">필터의 함정</a>
+  <a href="#backtest">백테스트</a>
+  <a href="#freq">번호 빈도</a>
+  <a href="#conclusion">결론</a>
+</div></nav>
+
+<div id="app">
+  <div class="loading">📊 분석 데이터(results.json)를 불러오는 중…</div>
+</div>
+
+<footer><div class="wrap">
+  <p>재현 코드: <a href="https://github.com/heekeunlee/lottonumber001/blob/main/analysis/simulate.py">analysis/simulate.py</a>
+     · 리포트: <a href="https://github.com/heekeunlee/lottonumber001/blob/main/analysis/report.md">report.md</a></p>
+  <p style="max-width:760px;margin:12px auto 0;font-size:12.5px;color:var(--muted)">
+    본 시뮬레이터는 <b>교육·연구·비평 목적</b>입니다. 생성된 "예상번호"의 당첨 확률은 무작위와 동일한 1/8,145,060이며,
+    어떤 분석도 당첨을 보장하지 않습니다. 로또는 매 회차 독립 시행입니다.</p>
+  <p style="margin-top:14px">© 2026 lottonumber001</p>
+</div></footer>
+
+<script>
+const BALLCOL=n=> n<=10?'#ffd24d':n<=20?'#7fd0ff':n<=30?'#ff8f8f':n<=40?'#9be39b':'#caa6ff';
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function gridCfg(){return {grid:{color:cssVar('--chart-grid')},ticks:{color:cssVar('--muted')}};}
+const charts={};
+Chart.defaults.font.family="'Noto Sans KR',sans-serif";
+
+// theme toggle
+const tBtn=document.getElementById('themeToggle'),tIcon=document.getElementById('themeIcon'),tLabel=document.getElementById('themeLabel');
+function applyTheme(m){document.documentElement.setAttribute('data-theme',m);const l=m==='light';tIcon.textContent=l?'☀️':'🌙';tLabel.textContent=l?'라이트':'다크';try{localStorage.setItem('lotto-theme',m);}catch(e){}refreshCharts();}
+tBtn.addEventListener('click',()=>{const c=document.documentElement.getAttribute('data-theme')==='light'?'light':'dark';applyTheme(c==='light'?'dark':'light');});
+function refreshCharts(){Object.values(charts).forEach(ch=>{const sc=ch.options.scales||{};['x','y'].forEach(ax=>{if(sc[ax]){sc[ax].grid.color=cssVar('--chart-grid');if(sc[ax].ticks)sc[ax].ticks.color=cssVar('--muted');}});ch.update('none');});}
+
+fetch('./analysis/results.json').then(r=>r.json()).then(render).catch(e=>{
+  document.getElementById('app').innerHTML='<div class="loading">데이터를 불러오지 못했습니다. analysis/results.json 확인 필요.<br><small>'+e+'</small></div>';
+});
+
+function render(R){
+  document.getElementById('hRounds').textContent=R.meta.rounds.toLocaleString();
+  const T=R.tests, B=R.backtest, F=R.filters;
+  const pPct=x=>(x*100).toFixed(1)+'%';
+  const ballHTML=ns=>ns.map(n=>`<div class="ball" style="background:${BALLCOL(n)}">${n}</div>`).join('');
+  const predHTML=R.predictions.map((p,i)=>`
+    <div class="pred-line"><span class="g">${i+1}게임</span>${ballHTML(p.nums)}
+      <span class="meta">합 ${p.sum} · 홀짝 ${p.oddeven} · 끝수합 ${p.endsum} · 연번 ${p.consec} · 구간 ${p.bands}</span></div>`).join('');
+
+  document.getElementById('app').innerHTML=`
+  <!-- PRED -->
+  <section id="pred"><div class="wrap">
+    <h2><span class="num">01</span>다음 주 ${R.meta.next_round}회 "예상번호"</h2>
+    <p class="lead">아래는 책의 기법(제외수·홀짝·총합·끝수합·연번·핫수 가중)을 모두 통과시켜 생성한 5게임입니다.</p>
+    <div class="card">${predHTML}</div>
+    <div class="callout red"><b>⚠️ 그러나:</b> 위 5게임 각각의 당첨 확률은 <span class="stat">1 / ${R.meta.C45_6.toLocaleString()}</span> 으로,
+      아무 번호나 찍은 5게임과 <b>수학적으로 완전히 동일</b>합니다. "분석으로 도출했다"는 서사만 있을 뿐 예측력은 0입니다.</div>
+  </div></section>
+
+  <!-- KPI -->
+  <section><div class="wrap">
+    <div class="kpis">
+      <div class="kpi"><div class="v">${R.meta.rounds.toLocaleString()}</div><div class="l">분석 회차 (1~${R.meta.last_round})</div></div>
+      <div class="kpi"><div class="v">${T.uniform.p.toFixed(3)}</div><div class="l">번호 균일성 p값 (편향 없음)</div></div>
+      <div class="kpi"><div class="v">${T.autocorr.p.toFixed(3)}</div><div class="l">핫/콜드 자기상관 p값 (독립)</div></div>
+      <div class="kpi"><div class="v">${B.p.toFixed(3)}</div><div class="l">기법 vs 무작위 p값 (동일)</div></div>
+    </div>
+  </div></section>
+
+  <!-- TESTS -->
+  <section id="tests"><div class="wrap">
+    <h2><span class="num">02</span>3대 통계 검정</h2>
+    <p class="lead">귀무가설 H₀: 추첨은 독립·균일하다 → 과거 기반 기법은 무력하다. 세 검정 모두 H₀를 기각하지 못합니다.</p>
+    <div class="grid g3">
+      <div class="card test-card"><h3>A. 번호 빈도 균일성<span class="verdict h0">H₀ 유지</span></h3>
+        <p>카이제곱 적합도 검정 (자유도 ${T.uniform.df})</p>
+        <p>χ² = <span class="stat">${T.uniform.chi2}</span> · p = <span class="stat">${T.uniform.p.toFixed(3)}</span></p>
+        <p style="color:var(--muted);font-size:13.5px">번호별 빈도가 균일분포와 구분되지 않음 → "잘 나오는 번호"는 잡음.</p></div>
+      <div class="card test-card"><h3>B. "나올 때 됐다" 검정<span class="verdict h0">H₀ 유지</span></h3>
+        <p>출현 0/1 시계열의 lag-1 자기상관</p>
+        <p>φ̄ = <span class="stat">${T.autocorr.mean_phi}</span> · z = <span class="stat">${T.autocorr.z}</span> · p = <span class="stat">${T.autocorr.p.toFixed(3)}</span></p>
+        <p style="color:var(--muted);font-size:13.5px">직전 출현이 다음 회차를 예측 못함 → 미출기간표는 도박사의 오류.</p></div>
+      <div class="card test-card"><h3>C. 미출 간격 무기억성<span class="verdict h0">H₀ 유지</span></h3>
+        <p>출현 간격의 분포 (기하분포 기대)</p>
+        <p>평균 = <span class="stat">${T.gap.mean}</span> (이론 ${T.gap.theoretical}) · CV = <span class="stat">${T.gap.cv}</span></p>
+        <p style="color:var(--muted);font-size:13.5px">CV≈1 → 완전 무기억. 번호는 "쌓였다 터지지" 않음.</p></div>
+    </div>
+  </div></section>
+
+  <!-- FILTER -->
+  <section id="filter"><div class="wrap">
+    <h2><span class="num">03</span>필터의 함정 — 확률은 오르지 않는다</h2>
+    <p class="lead">책의 모든 필터를 적용해도 후보는 여전히 수백만 개이며, 오히려 실제 당첨번호를 스스로 배제합니다.</p>
+    <table>
+      <tr><th>항목</th><th>값</th><th>함의</th></tr>
+      <tr><td>전체 조합 중 필터 통과율</td><td class="warn">${pPct(F.pass_rate_all)}</td><td>"압축" 후에도 약 ${F.filtered_pool.toLocaleString()}개 잔존</td></tr>
+      <tr><td><b>실제 당첨조합</b> 중 필터 통과율</td><td class="no">${pPct(F.pass_rate_actual)}</td><td>실제 1등의 약 ${(100-F.pass_rate_actual*100).toFixed(0)}%가 필터에 탈락</td></tr>
+      <tr><td>개별 티켓 당첨 확률</td><td class="no">1 / ${R.meta.C45_6.toLocaleString()}</td><td>필터 적용 여부와 무관하게 불변</td></tr>
+    </table>
+    <div class="callout"><b>핵심 모순:</b> 필터는 후보를 줄이지만 그 과정에서 <b>실제 당첨번호의 약 1/3</b>을 함께 버립니다.
+      per-ticket 확률은 그대로(1/8.14M)이고, 손실만 서로 상관되게 만들 뿐입니다.</div>
+  </div></section>
+
+  <!-- BACKTEST -->
+  <section id="backtest"><div class="wrap">
+    <h2><span class="num">04</span>백테스트 — 기법 vs 무작위</h2>
+    <p class="lead">${B.start_round}회차부터 각 회차 직전까지의 데이터만으로 5게임씩 생성(총 ${B.lines_each.toLocaleString()}게임)해 실제 결과와 비교.</p>
+    <div class="grid g2">
+      <div class="chartbox"><h3>3등 이상 당첨 건수</h3><p class="note">막대가 비슷할수록 "기법 = 무작위"</p>
+        <div class="canvas-h"><canvas id="btBar"></canvas></div></div>
+      <div class="card">
+        <table>
+          <tr><th>전략</th><th>3등↑ 당첨</th></tr>
+          <tr><td>📕 책 기법</td><td class="warn">${B.book_prizes}건</td></tr>
+          <tr><td>🎲 무작위</td><td class="ok">${B.rand_prizes}건</td></tr>
+          <tr><td>이론적 기대</td><td>${B.expected_prizes}건</td></tr>
+        </table>
+        <p style="margin-top:14px">차이 검정: z = <span class="stat">${B.z}</span>, p = <span class="stat">${B.p.toFixed(3)}</span></p>
+        <div class="callout blue" style="margin:14px 0 0"><b>p = ${B.p.toFixed(3)} ≫ 0.05</b> → 두 전략은 통계적으로 구분 불가.
+          표본상 책 기법이 오히려 ${B.rand_prizes-B.book_prizes>0?'적게':'많이'} 맞았으나 잡음 범위입니다.</div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- FREQ -->
+  <section id="freq"><div class="wrap">
+    <h2><span class="num">05</span>번호별 출현 빈도 (1~45)</h2>
+    <p class="lead">눈으로는 들쭉날쭉해 보이지만, 카이제곱 검정상 균일분포와 구분되지 않습니다(p=${T.uniform.p.toFixed(3)}).</p>
+    <div class="chartbox"><p class="note">점선 = 균일 기대도수 ${T.uniform.expected_each}회</p>
+      <div class="canvas-h" style="height:340px"><canvas id="freqBar"></canvas></div></div>
+  </div></section>
+
+  <!-- CONCLUSION -->
+  <section id="conclusion"><div class="wrap">
+    <h2><span class="num">06</span>결론</h2>
+    <div class="callout" style="text-align:center;font-size:16px">
+      <b>최종 명제</b><br/>
+      번호는 균일·독립·무기억이며(검정 A·B·C), 필터는 확률을 높이지 못하고(필터의 함정),
+      기법은 백테스트에서 무작위와 통계적으로 동일하다(p=${B.p.toFixed(3)}).<br/>
+      <b>∴ 시뮬레이터의 "다음 주 예상번호"는 서사적 장치일 뿐, 예측력은 수학적으로 0이다.</b>
+    </div>
+  </div></section>
+  `;
+
+  // charts
+  charts.btBar=new Chart(document.getElementById('btBar'),{type:'bar',
+    data:{labels:['책 기법','무작위','이론 기대'],datasets:[{label:'3등↑ 당첨 건수',
+      data:[B.book_prizes,B.rand_prizes,B.expected_prizes],
+      backgroundColor:[cssVar('--amber'),cssVar('--green'),cssVar('--accent')],borderRadius:6}]},
+    options:{plugins:{legend:{display:false}},scales:{y:{...gridCfg(),beginAtZero:true},x:gridCfg()}}});
+
+  const labels=R.freq.map(f=>f.n), data=R.freq.map(f=>f.c), exp=R.tests.uniform.expected_each;
+  charts.freqBar=new Chart(document.getElementById('freqBar'),{type:'bar',
+    data:{labels,datasets:[
+      {label:'출현 횟수',data,backgroundColor:labels.map(n=>BALLCOL(n)),borderRadius:3},
+      {label:'균일 기대',type:'line',data:labels.map(()=>exp),borderColor:cssVar('--red'),borderDash:[6,5],pointRadius:0,borderWidth:2}
+    ]},
+    options:{plugins:{legend:{labels:{color:cssVar('--muted')}}},scales:{y:{...gridCfg(),beginAtZero:true},x:{...gridCfg(),ticks:{...gridCfg().ticks,autoSkip:true,maxTicksLimit:23}}}}});
+}
+</script>
+</body>
+</html>
