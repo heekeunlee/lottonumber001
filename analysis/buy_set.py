@@ -2,58 +2,29 @@
 # -*- coding: utf-8 -*-
 """
 구매 비교 실험 — '예측 20게임(서로 다른 시드)' vs '실제 구매 20게임' vs 실제 당첨번호.
-
-목적: 책 기법으로 만든 예측 세트가 무작위 구매 세트와 통계적으로 다르지 않음을
-      2만원(20게임) 실거래로 직접 비교해 보인다.
+충실 기법(method.Method): 미출 기간표(핫/콜드) + 고정수 + 통계필터 + 핫수가중.
 
 사용법
-  python3 analysis/buy_set.py generate [회차] [게임수]     # 예측 세트 생성·잠금 (기본 20게임)
-  python3 analysis/buy_set.py user <회차> "1 2 3 4 5 6, 7 8 ..."  # 실제 구매번호 입력(쉼표로 게임 구분)
-  python3 analysis/buy_set.py score <회차> <n1..n6> <보너스>      # 둘 다 채점
-  python3 analysis/buy_set.py score <회차> --auto                # data/draws.json에서 자동 채점
+  python3 analysis/buy_set.py generate [회차] [게임수] [--force]   # 예측 세트 생성·잠금 (기본 20)
+  python3 analysis/buy_set.py weekly                              # 다가오는 회차 자동 생성 + 카톡 알림 출력
+  python3 analysis/buy_set.py user <회차> "1 2 3 4 5 6, 7 8 ..."   # 실제 구매번호 입력
+  python3 analysis/buy_set.py score <회차> <n1..n6> <보너스>        # 둘 다 채점
+  python3 analysis/buy_set.py score <회차> --auto                 # draws.json에서 자동 채점
 
 저장: analysis/compare_ledger.json   (compare.html 이 동적 로드)
+공개 대시보드: https://heekeunlee.github.io/lottonumber001/compare.html
 """
 import json, random, sys
 from datetime import datetime, timedelta
 from collections import Counter
 from pathlib import Path
+import method
 
 ROOT = Path(__file__).resolve().parent.parent
 DRAWS = ROOT / "data" / "draws.json"
 CMP = ROOT / "analysis" / "compare_ledger.json"
 BASE_SEED = 20260624
-
-def total_sum(ns): return sum(ns)
-def odd_even(ns): return sum(1 for n in ns if n % 2)
-def end_sum(ns): return sum(n % 10 for n in ns)
-def max_consec(ns):
-    s = sorted(ns); best = run = 1
-    for i in range(1, len(s)):
-        run = run + 1 if s[i] == s[i-1]+1 else 1; best = max(best, run)
-    return best
-def band_spread(ns): return len(set((n-1)//10 for n in ns))
-def passes(ns, prev):
-    if not (100 <= total_sum(ns) <= 175): return False
-    if odd_even(ns) in (0, 6): return False
-    if not (13 <= end_sum(ns) <= 38): return False
-    if max_consec(ns) >= 3: return False
-    if band_spread(ns) < 3: return False
-    if prev and len(set(ns) & set(prev)) >= 3: return False
-    return True
-
-def one_line(history, rnd):
-    cnt = Counter()
-    for d in history: cnt.update(d["nums"])
-    prev = history[-1]["nums"] if history else None
-    weights = {n: cnt.get(n, 0) + 1 for n in range(1, 46)}
-    wmax = max(weights.values())
-    for _ in range(200000):
-        pick = tuple(sorted(rnd.sample(range(1, 46), 6)))
-        w = sum(weights[n] for n in pick)
-        if rnd.random() > w / (6 * wmax): continue
-        if passes(pick, prev): return list(pick)
-    return sorted(rnd.sample(range(1, 46), 6))
+SITE = "https://heekeunlee.github.io/lottonumber001/compare.html"
 
 def grade(match, has_bonus):
     if match == 6: return "1등"
@@ -63,39 +34,49 @@ def grade(match, has_bonus):
     if match == 3: return "5등"
     return "꽝"
 
-def next_saturday(date_str):
-    return (datetime.strptime(date_str, "%Y%m%d") + timedelta(days=7)).strftime("%Y-%m-%d")
+def next_saturday(s):
+    return (datetime.strptime(s, "%Y%m%d") + timedelta(days=7)).strftime("%Y-%m-%d")
 
-def load():
-    return json.load(open(CMP, encoding="utf-8")) if CMP.exists() else {}
-def save(d):
-    json.dump(d, open(CMP, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+def load(): return json.load(open(CMP, encoding="utf-8")) if CMP.exists() else {}
+def save(d): json.dump(d, open(CMP, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 
-def cmd_generate(rnd_arg=None, count=20):
+def build_predicted(draws, nxt, count):
+    m = method.Method(draws, fixed_k=1)
+    predicted = []
+    for i in range(count):
+        seed = BASE_SEED + nxt * 1000 + i        # 게임마다 다른 시드
+        predicted.append({"i": i + 1, "seed": seed, "nums": m.line(random.Random(seed))})
+    return predicted, m.meta()
+
+def cmd_generate(rnd_arg=None, count=20, force=False):
     draws = json.load(open(DRAWS, encoding="utf-8"))
     nxt = int(rnd_arg) if rnd_arg else draws[-1]["r"] + 1
     draw_date = next_saturday(draws[-1]["date"]) if nxt == draws[-1]["r"]+1 else "?"
-    predicted = []
-    for i in range(count):
-        # 게임마다 '서로 다른 시드' — 같은 기법인데 시드만 바꿔도 번호가 전부 달라짐을 보임
-        seed = BASE_SEED + nxt * 1000 + i
-        r = random.Random(seed)
-        predicted.append({"i": i + 1, "seed": seed, "nums": one_line(draws, r)})
-    led = load()
-    key = str(nxt)
-    if key in led and led[key].get("predicted"):
-        print(f"{nxt}회 예측 세트가 이미 잠겨 있습니다(보존)."); return
+    led = load(); key = str(nxt)
+    if key in led and led[key].get("predicted") and not force:
+        print(f"{nxt}회 예측 세트가 이미 잠겨 있습니다(보존). 덮어쓰려면 --force."); return led, key
+    predicted, meta = build_predicted(draws, nxt, count)
     led[key] = {
-        "round": nxt, "draw_date": draw_date, "budget": count * 1000, "games": count,
+        "round": nxt, "draw_date": draw_date, "budget": count*1000, "games": count,
         "locked_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "predicted": predicted, "user": None, "actual": None,
-        "result": None, "status": "pending",
+        "method": "faithful-v2", "fixed": meta["fixed"], "cold_thr": meta["cold_thr"],
+        "predicted": predicted, "user": led.get(key, {}).get("user"),
+        "actual": None, "result": None, "status": "pending",
     }
     save(led)
-    print(f"[locked] {nxt}회 예측 {count}게임 ({count*1000:,}원) — 추첨 {draw_date}")
+    print(f"[locked] {nxt}회 예측 {count}게임 ({count*1000:,}원) 고정수={meta['fixed']} 콜드임계={meta['cold_thr']} — 추첨 {draw_date}")
     for p in predicted:
         print(f"  {p['i']:2d}) " + " ".join(f"{n:02d}" for n in p["nums"]) + f"   (seed {p['seed']})")
-    print("\n→ 실제 판매점에서 20게임 구매 후: python3 analysis/buy_set.py user", nxt, '"...번호..."')
+    return led, key
+
+def cmd_weekly():
+    led, key = cmd_generate(None, 20, force=False)
+    e = led[key]
+    msg = (f"🎰 {e['round']}회({e['draw_date'][5:]}) 비교실험 20게임({e['budget']:,}원) 잠금완료\n"
+           f"고정수 {e['fixed'][0]:02d} · 전체 20게임 보기↓\n{SITE}\n⚠️예측력0·오락용")
+    if len(msg) > 200: msg = msg[:197] + "…"
+    print("<<<KAKAO>>>")
+    print(msg)
 
 def cmd_user(rnd_arg, blob):
     led = load(); key = str(rnd_arg)
@@ -128,31 +109,30 @@ def cmd_score(rnd_arg, rest):
         d = draws[int(key)]; nums, bonus = d["nums"], d["bonus"]
     else:
         nums = list(map(int, rest[:6])); bonus = int(rest[6])
-    pred_scored, pc = score_set(e["predicted"], nums, bonus)
-    e["predicted"] = pred_scored
-    user_summary = None
+    pred_scored, pc = score_set(e["predicted"], nums, bonus); e["predicted"] = pred_scored
+    uc = Counter()
     if e.get("user"):
-        user_scored, uc = score_set(e["user"], nums, bonus)
-        e["user"] = user_scored; user_summary = dict(uc)
+        e["user"], uc = score_set(e["user"], nums, bonus)
     e["actual"] = {"nums": sorted(nums), "bonus": bonus}
-    def prize_won(c):
-        # 4등 5만, 5등 5천 (고정분만 합산; 1~3등은 변동이라 별도)
-        return c.get("4등",0)*50000 + c.get("5등",0)*5000
-    e["result"] = {"predicted": dict(pc), "user": user_summary,
-                   "pred_fixed_won": prize_won(pc),
-                   "user_fixed_won": prize_won(uc) if e.get("user") else None}
-    e["status"] = "scored"
-    save(led)
+    fixed_won = lambda c: c.get("4등",0)*50000 + c.get("5등",0)*5000
+    e["result"] = {"predicted": dict(pc), "user": dict(uc) if e.get("user") else None,
+                   "pred_fixed_won": fixed_won(pc),
+                   "user_fixed_won": fixed_won(uc) if e.get("user") else None}
+    e["status"] = "scored"; save(led)
     print(f"[scored] {key}회 실제 {sorted(nums)}+{bonus}")
-    print("  예측 세트:", dict(pc), f"(고정상금 {prize_won(pc):,}원 / 투자 {e['budget']:,}원)")
-    if user_summary:
-        print("  실제구매 :", user_summary, f"(고정상금 {prize_won(uc):,}원 / 투자 {e['budget']:,}원)")
+    print("  예측:", dict(pc), f"(고정상금 {fixed_won(pc):,}원/투자 {e['budget']:,}원)")
+    if e.get("user"):
+        print("  실구매:", dict(uc), f"(고정상금 {fixed_won(uc):,}원/투자 {e['budget']:,}원)")
 
 def main():
     a = sys.argv[1:]
     if not a: print(__doc__); return
     if a[0] == "generate":
-        cmd_generate(a[1] if len(a) > 1 else None, int(a[2]) if len(a) > 2 else 20)
+        pos = [x for x in a[1:] if x != "--force"]
+        cmd_generate(pos[0] if len(pos) > 0 else None,
+                     int(pos[1]) if len(pos) > 1 else 20, "--force" in a)
+    elif a[0] == "weekly":
+        cmd_weekly()
     elif a[0] == "user" and len(a) >= 3:
         cmd_user(a[1], " ".join(a[2:]))
     elif a[0] == "score" and len(a) >= 3:

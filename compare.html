@@ -134,8 +134,10 @@ function roundHTML(e){
      <div class="callout red">투자 ${e.budget.toLocaleString()}원 × 2세트. 예측·실구매 성적이 비슷하게 <b>둘 다 원금 미만</b>이면,
        "분석은 무작위와 다르지 않다 + 음의 기대수익"이 실거래로 입증된 것입니다.</div>`;
   } else {
-    resultHTML=`<div class="callout">예측 ${e.games}게임(${e.budget.toLocaleString()}원)은 <b>추첨 전 잠금(${e.locked_at})</b>되었습니다.
-      각 게임은 <b>서로 다른 시드</b>로 만들어 번호가 전부 다릅니다 — 같은 기법이라도 시드만 바꾸면 결과가 달라진다는 증거입니다.</div>`;
+    const fx=e.fixed?` · 고정수 <b>${e.fixed.map(n=>String(n).padStart(2,'0')).join(', ')}</b>(전 게임 포함)`:'';
+    const ct=e.cold_thr!=null?` · 콜드임계 ${e.cold_thr}`:'';
+    resultHTML=`<div class="callout">예측 ${e.games}게임(${e.budget.toLocaleString()}원)은 <b>추첨 전 잠금(${e.locked_at})</b>되었습니다${fx}${ct}.
+      충실 기법(미출 기간표·고정수·통계필터) 적용. 각 게임은 <b>서로 다른 시드</b>라 고정수 외 자리는 전부 다릅니다 — 같은 기법도 시드만 바꾸면 결과가 달라진다는 증거입니다.</div>`;
   }
 
   return `<section><div class="wrap">
