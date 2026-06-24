@@ -50,7 +50,7 @@ def main():
     body = [f"🎰 {nxt}회({draw_date[5:]}) 예상 고정수{meta['fixed'][0]:02d}"]
     for i, ln in enumerate(locked):
         body.append(f"{CIRC[i]}" + " ".join(f"{n:02d}" for n in ln))
-    body.append("⚠️예측력0·오락용 각1/814만")
+    body.append(method.METHOD_KEYWORDS)
     msg = "\n".join(body)
     if len(msg) > 200: msg = msg[:197] + "…"
 

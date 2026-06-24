@@ -14,6 +14,9 @@ weekly_predict.py(5게임)와 buy_set.py(20게임)가 함께 사용한다.
 import statistics
 from collections import Counter
 
+# 카톡 본문에 표기할 적용 기법 키워드
+METHOD_KEYWORDS = "📊기법 미출기간표·고정수·홀짝·총합·끝수합·연번·구간·제외수·핫수가중"
+
 def total_sum(ns): return sum(ns)
 def odd_even(ns): return sum(1 for n in ns if n % 2)
 def end_sum(ns): return sum(n % 10 for n in ns)

@@ -73,7 +73,7 @@ def cmd_weekly():
     led, key = cmd_generate(None, 20, force=False)
     e = led[key]
     msg = (f"🎰 {e['round']}회({e['draw_date'][5:]}) 비교실험 20게임({e['budget']:,}원) 잠금완료\n"
-           f"고정수 {e['fixed'][0]:02d} · 전체 20게임 보기↓\n{SITE}\n⚠️예측력0·오락용")
+           f"고정수 {e['fixed'][0]:02d} · 전체 20게임 보기↓\n{SITE}\n{method.METHOD_KEYWORDS}")
     if len(msg) > 200: msg = msg[:197] + "…"
     print("<<<KAKAO>>>")
     print(msg)
