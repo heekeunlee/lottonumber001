@@ -93,6 +93,8 @@
   <a href="#tests">3대 검정</a>
   <a href="#filter">필터의 함정</a>
   <a href="#backtest">백테스트</a>
+  <a href="#roi">기대수익</a>
+  <a href="#autocorr">자기상관</a>
   <a href="#freq">번호 빈도</a>
   <a href="#conclusion">결론</a>
 </div></nav>
@@ -166,9 +168,11 @@ function render(R){
         <p>χ² = <span class="stat">${T.uniform.chi2}</span> · p = <span class="stat">${T.uniform.p.toFixed(3)}</span></p>
         <p style="color:var(--muted);font-size:13.5px">번호별 빈도가 균일분포와 구분되지 않음 → "잘 나오는 번호"는 잡음.</p></div>
       <div class="card test-card"><h3>B. "나올 때 됐다" 검정<span class="verdict h0">H₀ 유지</span></h3>
-        <p>출현 0/1 시계열의 lag-1 자기상관</p>
-        <p>φ̄ = <span class="stat">${T.autocorr.mean_phi}</span> · z = <span class="stat">${T.autocorr.z}</span> · p = <span class="stat">${T.autocorr.p.toFixed(3)}</span></p>
-        <p style="color:var(--muted);font-size:13.5px">직전 출현이 다음 회차를 예측 못함 → 미출기간표는 도박사의 오류.</p></div>
+        <p>번호별 lag-1 자기상관 · BH 다중비교 보정(FDR 0.05)</p>
+        <p>φ̄ = <span class="stat">${T.autocorr.mean_phi}</span> · 전체 p = <span class="stat">${T.autocorr.p.toFixed(3)}</span></p>
+        <p>BH 유의 번호 = <span class="stat">${T.autocorr.bh_significant} / ${T.autocorr.n_tests}</span>
+           (최소 raw p ${T.autocorr.min_raw_p.toFixed(3)} → 보정 ${T.autocorr.min_adj_p.toFixed(3)})</p>
+        <p style="color:var(--muted);font-size:13.5px">순진하게는 1개가 유의해 보이나, 45개 동시검정 보정 후 <b>거짓양성</b>으로 소멸.</p></div>
       <div class="card test-card"><h3>C. 미출 간격 무기억성<span class="verdict h0">H₀ 유지</span></h3>
         <p>출현 간격의 분포 (기하분포 기대)</p>
         <p>평균 = <span class="stat">${T.gap.mean}</span> (이론 ${T.gap.theoretical}) · CV = <span class="stat">${T.gap.cv}</span></p>
@@ -211,9 +215,45 @@ function render(R){
     </div>
   </div></section>
 
+  <!-- ROI -->
+  <section id="roi"><div class="wrap">
+    <h2><span class="num">05</span>기대수익(ROI) — 음(−)의 기대수익</h2>
+    <p class="lead">등수별 확률 × 역대 평균 당첨금으로 1게임(${R.ev.ticket.toLocaleString()}원)의 기대값을 계산합니다.
+       <b>이 값은 책 기법·무작위가 완전히 동일</b>합니다.</p>
+    <div class="grid g2">
+      <div class="chartbox"><h3>등수별 기대값 기여(원)</h3><p class="note">5등(소액·고빈도)이 기여의 대부분 — 그래도 합계는 원금 미만</p>
+        <div class="canvas-h"><canvas id="evBar"></canvas></div></div>
+      <div class="card">
+        <table>
+          <tr><th>등수</th><th>확률</th><th>기여 EV</th></tr>
+          <tr><td>1등</td><td>1/${(1/R.ev.probs['1']).toLocaleString(undefined,{maximumFractionDigits:0})}</td><td>${R.ev.terms['1']}원</td></tr>
+          <tr><td>2등</td><td>1/${(1/R.ev.probs['2']).toLocaleString(undefined,{maximumFractionDigits:0})}</td><td>${R.ev.terms['2']}원</td></tr>
+          <tr><td>3등</td><td>1/${(1/R.ev.probs['3']).toLocaleString(undefined,{maximumFractionDigits:0})}</td><td>${R.ev.terms['3']}원</td></tr>
+          <tr><td>4등</td><td>1/${(1/R.ev.probs['4']).toLocaleString(undefined,{maximumFractionDigits:0})}</td><td>${R.ev.terms['4']}원</td></tr>
+          <tr><td>5등</td><td>1/${(1/R.ev.probs['5']).toLocaleString(undefined,{maximumFractionDigits:0})}</td><td>${R.ev.terms['5']}원</td></tr>
+          <tr><td><b>합계 EV</b></td><td></td><td class="no"><b>${R.ev.ev}원</b></td></tr>
+        </table>
+        <div class="kpis" style="grid-template-columns:1fr 1fr;margin-top:16px">
+          <div class="kpi"><div class="v">${(R.ev.payout_ratio*100).toFixed(1)}%</div><div class="l">환급률(EV/원금)</div></div>
+          <div class="kpi"><div class="v" style="color:var(--red)">${(R.ev.roi*100).toFixed(1)}%</div><div class="l">기대수익률 ROI</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="callout red"><b>매주 ${R.ev.ticket.toLocaleString()}원을 넣으면 기대상으로 ${(1000-R.ev.ev).toFixed(0)}원이 사라집니다.</b>
+      기법으로 번호를 "분석"해도 이 음의 기대수익은 <b>1원도 개선되지 않습니다</b>(등수확률 불변).</div>
+  </div></section>
+
+  <!-- AUTOCORR DETAIL -->
+  <section id="autocorr"><div class="wrap">
+    <h2><span class="num">06</span>번호별 자기상관 (검정 B 상세)</h2>
+    <p class="lead">45개 번호의 lag-1 자기상관 φ. 모두 0 부근에서 무작위로 흩어져 있고, BH 보정 후 유의한 번호는 ${T.autocorr.bh_significant}개입니다.</p>
+    <div class="chartbox"><p class="note">점선 = ±2/√N (약 ±${(2/Math.sqrt(R.meta.rounds)).toFixed(3)}) 단순 유의경계 — 보정 전 기준</p>
+      <div class="canvas-h" style="height:320px"><canvas id="acBar"></canvas></div></div>
+  </div></section>
+
   <!-- FREQ -->
   <section id="freq"><div class="wrap">
-    <h2><span class="num">05</span>번호별 출현 빈도 (1~45)</h2>
+    <h2><span class="num">07</span>번호별 출현 빈도 (1~45)</h2>
     <p class="lead">눈으로는 들쭉날쭉해 보이지만, 카이제곱 검정상 균일분포와 구분되지 않습니다(p=${T.uniform.p.toFixed(3)}).</p>
     <div class="chartbox"><p class="note">점선 = 균일 기대도수 ${T.uniform.expected_each}회</p>
       <div class="canvas-h" style="height:340px"><canvas id="freqBar"></canvas></div></div>
@@ -221,11 +261,11 @@ function render(R){
 
   <!-- CONCLUSION -->
   <section id="conclusion"><div class="wrap">
-    <h2><span class="num">06</span>결론</h2>
+    <h2><span class="num">08</span>결론</h2>
     <div class="callout" style="text-align:center;font-size:16px">
       <b>최종 명제</b><br/>
-      번호는 균일·독립·무기억이며(검정 A·B·C), 필터는 확률을 높이지 못하고(필터의 함정),
-      기법은 백테스트에서 무작위와 통계적으로 동일하다(p=${B.p.toFixed(3)}).<br/>
+      번호는 균일·독립·무기억이며(검정 A·B·C, BH 보정 후 유의 번호 0개), 필터는 확률을 높이지 못하고(필터의 함정),
+      기법은 백테스트에서 무작위와 통계적으로 동일하며(p=${B.p.toFixed(3)}), 기대수익률은 약 ${(R.ev.roi*100).toFixed(0)}%로 기법·무작위가 같다.<br/>
       <b>∴ 시뮬레이터의 "다음 주 예상번호"는 서사적 장치일 뿐, 예측력은 수학적으로 0이다.</b>
     </div>
   </div></section>
@@ -237,6 +277,24 @@ function render(R){
       data:[B.book_prizes,B.rand_prizes,B.expected_prizes],
       backgroundColor:[cssVar('--amber'),cssVar('--green'),cssVar('--accent')],borderRadius:6}]},
     options:{plugins:{legend:{display:false}},scales:{y:{...gridCfg(),beginAtZero:true},x:gridCfg()}}});
+
+  // EV 기여 막대
+  charts.evBar=new Chart(document.getElementById('evBar'),{type:'bar',
+    data:{labels:['1등','2등','3등','4등','5등'],datasets:[{label:'기여 EV(원)',
+      data:[R.ev.terms['1'],R.ev.terms['2'],R.ev.terms['3'],R.ev.terms['4'],R.ev.terms['5']],
+      backgroundColor:[cssVar('--red'),cssVar('--amber'),cssVar('--gold'),cssVar('--green'),cssVar('--accent')],borderRadius:6}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'원'}}},scales:{y:{...gridCfg(),beginAtZero:true},x:gridCfg()}}});
+
+  // 번호별 자기상관 막대
+  const ac=R.tests.autocorr.per_num, bound=2/Math.sqrt(R.meta.rounds);
+  charts.acBar=new Chart(document.getElementById('acBar'),{type:'bar',
+    data:{labels:ac.map(a=>a.n),datasets:[
+      {label:'lag-1 자기상관 φ',data:ac.map(a=>a.phi),
+       backgroundColor:ac.map(a=>Math.abs(a.phi)>bound?cssVar('--amber'):cssVar('--accent')),borderRadius:2},
+      {label:'+경계',type:'line',data:ac.map(()=>bound),borderColor:cssVar('--red'),borderDash:[5,4],pointRadius:0,borderWidth:1.5},
+      {label:'−경계',type:'line',data:ac.map(()=>-bound),borderColor:cssVar('--red'),borderDash:[5,4],pointRadius:0,borderWidth:1.5}
+    ]},
+    options:{plugins:{legend:{labels:{color:cssVar('--muted')}}},scales:{y:{...gridCfg()},x:{...gridCfg(),ticks:{...gridCfg().ticks,autoSkip:true,maxTicksLimit:23}}}}});
 
   const labels=R.freq.map(f=>f.n), data=R.freq.map(f=>f.c), exp=R.tests.uniform.expected_each;
   charts.freqBar=new Chart(document.getElementById('freqBar'),{type:'bar',

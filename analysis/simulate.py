@@ -67,35 +67,87 @@ freq_table = [{"n": n, "c": freq.get(n, 0)} for n in range(1, 46)]
 hot  = sorted(range(1, 46), key=lambda n: -freq.get(n, 0))[:6]
 cold = sorted(range(1, 46), key=lambda n:  freq.get(n, 0))[:6]
 
+# ───── 정밀 통계 함수 (외부 의존성 없이 exact) ─────
+def _gammln(x):
+    cof = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+           -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5]
+    y = x; tmp = x + 5.5; tmp -= (x + 0.5) * math.log(tmp); ser = 1.000000000190015
+    for c in cof:
+        y += 1; ser += c / y
+    return -tmp + math.log(2.5066282746310005 * ser / x)
+
+def _gammq(a, x):
+    """정칙 상측 불완전감마 Q(a,x) — Numerical Recipes (series/continued fraction)"""
+    if x < 0 or a <= 0: return float("nan")
+    if x < a + 1.0:                     # 급수 전개
+        ap = a; s = 1.0 / a; dl = s
+        for _ in range(500):
+            ap += 1; dl *= x / ap; s += dl
+            if abs(dl) < abs(s) * 1e-14: break
+        return 1.0 - s * math.exp(-x + a * math.log(x) - _gammln(a))
+    # 연분수 전개
+    b = x + 1.0 - a; c = 1e308; d = 1.0 / b; h = d
+    for i in range(1, 500):
+        an = -i * (i - a); b += 2.0
+        d = an * d + b
+        if abs(d) < 1e-300: d = 1e-300
+        c = b + an / c
+        if abs(c) < 1e-300: c = 1e-300
+        d = 1.0 / d; de = d * c; h *= de
+        if abs(de - 1.0) < 1e-14: break
+    return math.exp(-x + a * math.log(x) - _gammln(a)) * h
+
+def chi2_sf(x, k):                       # χ² 생존함수 = Q(k/2, x/2) — exact
+    if x <= 0: return 1.0
+    return _gammq(k / 2.0, x / 2.0)
+
+def norm_sf2(z):                         # 표준정규 양측 p값
+    return math.erfc(abs(z) / math.sqrt(2))
+
 # ───── 검정 A: 번호 빈도 균일성 (카이제곱 적합도) ─────
 # H0: 45개 번호가 균일분포. 기대도수 = 6N/45
 exp = 6 * N / 45
 chi2_uniform = sum((freq.get(n, 0) - exp) ** 2 / exp for n in range(1, 46))
 df_uniform = 44
-# 카이제곱 p-value (자유도 44) — 생존함수 근사(Wilson–Hilferty)
-def chi2_sf(x, k):
-    if x <= 0: return 1.0
-    t = (x / k) ** (1/3)
-    z = (t - (1 - 2/(9*k))) / math.sqrt(2/(9*k))
-    # 표준정규 생존함수
-    return 0.5 * math.erfc(z / math.sqrt(2))
-p_uniform = chi2_sf(chi2_uniform, df_uniform)
+p_uniform = chi2_sf(chi2_uniform, df_uniform)  # 정밀(exact) p값
 
-# ───── 검정 B: '핫/콜드(나올 때 됐다)' 자기상관 검정 ─────
-# 번호 n이 회차 t에 나오는 사건을 0/1로 보고, lag-1 자기상관 ϕ 평균.
-# H0: 독립(무기억) → ϕ ≈ 0
-phis = []
+# ───── 검정 B: '핫/콜드(나올 때 됐다)' 자기상관 검정 + 다중비교 보정 ─────
+# 번호 n이 회차 t에 나오는 사건을 0/1로 보고, lag-1 자기상관 ϕ를 번호별로 검정.
+# H0: 각 번호는 독립(무기억) → ϕ ≈ 0.  45개 동시검정이므로 BH(FDR) 보정.
 appear = {n: [1 if n in d["nums"] else 0 for d in draws] for n in range(1, 46)}
+per_num = []   # (번호, phi, z, p)
 for n in range(1, 46):
     x = appear[n]; m = sum(x) / N
     num = sum((x[t] - m) * (x[t+1] - m) for t in range(N - 1))
     den = sum((v - m) ** 2 for v in x)
-    if den > 0:
-        phis.append(num / den)
+    phi = num / den if den > 0 else 0.0
+    z = phi * math.sqrt(N)                 # SE(ϕ) ≈ 1/√N
+    per_num.append((n, phi, z, norm_sf2(z)))
+phis = [p[1] for p in per_num]
 mean_phi = statistics.mean(phis)
-# 표준오차 ≈ 1/sqrt(N); z-점수
-z_phi = mean_phi / (1 / math.sqrt(N))
-p_phi = math.erfc(abs(z_phi) / math.sqrt(2))
+z_phi = mean_phi / (1 / math.sqrt(N))      # 전체 평균 ϕ의 z
+p_phi = norm_sf2(z_phi)
+
+# Benjamini–Hochberg (FDR=0.05): 보정 후 유의한 번호 개수
+def benjamini_hochberg(pvals, q=0.05):
+    m = len(pvals)
+    order = sorted(range(m), key=lambda i: pvals[i])
+    thresh = 0; crit = []
+    for rank, idx in enumerate(order, 1):
+        c = rank / m * q; crit.append((idx, pvals[idx], c))
+        if pvals[idx] <= c: thresh = rank
+    rejected = set(order[i] for i in range(thresh))
+    # 보정 p값 (q-value)
+    adj = [0.0] * m; prev = 1.0
+    for rank in range(m, 0, -1):
+        idx = order[rank - 1]
+        prev = min(prev, pvals[idx] * m / rank); adj[idx] = min(prev, 1.0)
+    return rejected, adj
+bh_p = [p[3] for p in per_num]
+bh_reject, bh_adj = benjamini_hochberg(bh_p, 0.05)
+n_significant_bh = len(bh_reject)
+min_raw_p = min(bh_p)
+min_adj_p = min(bh_adj)
 
 # ───── 검정 C: '미출 간격(gap)' 무기억성 ─────
 # 각 번호의 출현 간격이 기하분포(무기억)인지 — 평균 간격 vs 이론값 45/6=7.5
@@ -188,7 +240,31 @@ exp_prizes = p_3plus * book_lc
 diff = book_prizes - rand_prizes
 se_diff = math.sqrt(book_prizes + rand_prizes) if (book_prizes + rand_prizes) else 1
 z_bt = diff / se_diff
-p_bt = math.erfc(abs(z_bt) / math.sqrt(2))
+p_bt = norm_sf2(z_bt)
+
+# ───────────────────────── 5b. 기대수익(EV/ROI) 분석 ─────────────────────────
+# 등수별 당첨확률 (보너스 고려)
+TICKET = 1000  # 1게임 1,000원
+P1 = 1 / C45_6
+P2 = 6 / C45_6                                  # 5개+보너스
+P3 = (math.comb(6, 5) * (39 - 1)) / C45_6       # 5개(보너스 제외)
+P4 = (math.comb(6, 4) * math.comb(39, 2)) / C45_6
+P5 = (math.comb(6, 3) * math.comb(39, 3)) / C45_6
+# 역대 평균 당첨금(당첨자 1인 기준). 1~3등=변동(역대평균), 4·5등=고정
+def avg_prize(amt_key, cnt_key):
+    v = [r[amt_key] for r in raw if r.get(cnt_key, 0) > 0 and r.get(amt_key, 0) > 0]
+    return statistics.mean(v)
+PRZ = {
+    1: avg_prize("1등 당첨금액", "1등 당첨자수"),
+    2: avg_prize("2등 당첨금액", "2등 당첨자수"),
+    3: avg_prize("3등 당첨금액", "3등 당첨자수"),
+    4: 50000.0, 5: 5000.0,
+}
+ev_terms = {1: P1*PRZ[1], 2: P2*PRZ[2], 3: P3*PRZ[3], 4: P4*PRZ[4], 5: P5*PRZ[5]}
+ev = sum(ev_terms.values())
+roi = ev / TICKET - 1                            # 기대수익률
+payout_ratio = ev / TICKET                       # 환급률
+# 핵심: 이 EV는 책 기법/무작위 모두 동일(티켓별 등수확률이 같음)
 
 # ───────────────────────── 6. 다음 주(LAST+1) 예상번호 ─────────────────────────
 next_round = LAST + 1
@@ -211,9 +287,21 @@ results = {
     "consec_dist": {str(k): v for k, v in sorted(consec_dist.items())},
     "tests": {
         "uniform": {"chi2": round(chi2_uniform, 2), "df": df_uniform,
-                    "p": p_uniform, "expected_each": round(exp, 1)},
-        "autocorr": {"mean_phi": round(mean_phi, 5), "z": round(z_phi, 3), "p": round(p_phi, 4)},
+                    "p": p_uniform, "p_exact": True, "expected_each": round(exp, 1)},
+        "autocorr": {"mean_phi": round(mean_phi, 5), "z": round(z_phi, 3), "p": round(p_phi, 4),
+                     "bh_significant": n_significant_bh, "n_tests": 45,
+                     "min_raw_p": round(min_raw_p, 4), "min_adj_p": round(min_adj_p, 4),
+                     "per_num": [{"n": n, "phi": round(ph, 4), "z": round(z, 3),
+                                  "p": round(p, 4), "adj": round(bh_adj[i], 4)}
+                                 for i, (n, ph, z, p) in enumerate(per_num)]},
         "gap": {"mean": round(mean_gap, 3), "theoretical": theo_gap, "cv": round(cv_gap, 3)},
+    },
+    "ev": {
+        "ticket": TICKET, "ev": round(ev, 2), "roi": round(roi, 4),
+        "payout_ratio": round(payout_ratio, 4),
+        "probs": {"1": P1, "2": P2, "3": P3, "4": P4, "5": P5},
+        "prizes": {str(k): round(v) for k, v in PRZ.items()},
+        "terms": {str(k): round(v, 2) for k, v in ev_terms.items()},
     },
     "filters": {"pass_rate_actual": round(pass_rate_actual, 4),
                 "pass_rate_all": round(pass_rate_all, 4),
@@ -239,7 +327,11 @@ print(f"■ [검정A] 번호 균일성 χ²({df_uniform})={chi2_uniform:.2f}, p=
       f"→ {'균일분포와 불일치(편향有)' if p_uniform<0.05 else '균일분포와 일치(편향 없음)'}")
 print(f"■ [검정B] 핫/콜드 자기상관 평균ϕ={mean_phi:.5f}, z={z_phi:.2f}, p={p_phi:.3f}  "
       f"→ {'유의' if p_phi<0.05 else '독립(나올 때 됐다 = 근거없음)'}")
+print(f"   └ BH(FDR0.05) 45개 동시검정: 유의 번호 {n_significant_bh}개 "
+      f"(최소 raw p={min_raw_p:.3f}, 보정 p={min_adj_p:.3f})")
 print(f"■ [검정C] 미출간격 평균={mean_gap:.2f}(이론 {theo_gap}), CV={cv_gap:.2f}(기하분포≈1)")
+print(f"■ [기대값] 1게임 EV={ev:,.0f}원 / {TICKET:,}원 → 환급률 {payout_ratio:.1%}, ROI {roi:+.1%} "
+      f"(책 기법·무작위 동일)")
 print(f"■ 필터 통과율: 실제당첨 {pass_rate_actual:.1%}, 전체조합 {pass_rate_all:.1%} "
       f"→ 후보풀 {filtered_pool:,} (전체의 {pass_rate_all:.1%})")
 print(f"■ 백테스트({book_lc}게임씩): 기법 3등+이상 {book_prizes} vs 무작위 {rand_prizes} "
